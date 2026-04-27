@@ -14,6 +14,8 @@
   <a href="https://drive.google.com/file/d/1Uj6FCa0QIoPI7tp9FgTGdU5rruFiIVgW/view?usp=sharing">Paper</a>
 </p>
 
+---
+
 <p align="center">
   <img src="assets/wellbeing_hero.png" alt="Emergence of Functional Wellbeing in Frontier AI Models" width="900">
 </p>
