@@ -2,8 +2,7 @@
   <img src="assets/cais_logo.png" alt="Center for AI Safety" width="220">
 </p>
 
-<h1 align="center">AI Wellbeing</h1>
-<h3 align="center">Measuring and Improving the Functional Pleasure and Pain of AIs</h3>
+<h1 align="center">AI Wellbeing: Measuring and Improving the Functional Pleasure and Pain of AIs</h1>
 
 <p align="center">
   <a href="https://www.ai-wellbeing.org">Website</a> •
