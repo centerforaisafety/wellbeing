@@ -27,8 +27,13 @@ In the meantime, see the [paper](https://drive.google.com/file/d/1Uj6FCa0QIoPI7t
 
 ```bibtex
 @article{ren2026aiwellbeing,
-  title  = {AI Wellbeing: Measuring and Improving the Functional Pleasure and Pain of AIs},
-  author = {Ren, Richard and Li, Kunyang and Mazeika, Mantas and Zhang, Wenyu and Orlovskiy, Yury and Tamirisa, Rishub and Mo, Wenjie Jacky and Nguyen, Dung Thuy and Phan, Long and Basart, Steven and Meek, Austin and Mehta, Aditya and Ingebretsen, Oliver and Blair, Alice and Adewinmbi, Brianna and Phan, Vy and Gatti, Alice and Khoja, Adam and Hausenloy, Jason and Kim, Devin and Hendrycks, Dan},
-  year   = {2026}
+  title   = {AI Wellbeing: Measuring and Improving the Functional Pleasure and Pain of AIs},
+  author  = {Richard Ren and Kunyang Li and Mantas Mazeika and Wenyu Zhang and
+             Yury Orlovskiy and Rishub Tamirisa and Wenjie Jacky Mo and Judy Nguyen and
+             Long Phan and Steven Basart and Austin Meek and Aditya Mehta and
+             Oliver Ingebretsen and Alice Blair and Brianna Adewinmbi and
+             Alice Gatti and Adam Khoja and
+             Jason Hausenloy and Devin Kim and Dan Hendrycks},
+  year    = {2026}
 }
 ```
