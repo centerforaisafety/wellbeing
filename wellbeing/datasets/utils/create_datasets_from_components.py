@@ -33,13 +33,11 @@ from experiences.load_experiences import load_by_format
 
 # ---------------------------------------------------------------------------
 # Combination generator
-#
-# Inlined here because the original `generate_combo_variants` helper was lost
-# during cleanup. Mirrors the implementation in the sibling
-# `experiences/component_datasets/image_experiences/prepare_image_experiences.py`
-# script.
 # ---------------------------------------------------------------------------
 
+# Mixture of bundle sizes when sampling combination items. Combinations of size
+# 2-5 are drawn with these probabilities; the resulting combo experiences are
+# concatenations of individually labelled experience descriptions.
 SIZE_DISTRIBUTION = {2: 0.40, 3: 0.25, 4: 0.20, 5: 0.15}
 
 
@@ -54,7 +52,13 @@ def _compute_counts(n_total, distribution):
 
 
 def generate_combos(experiences, n_total, seed):
-    """Generate n_total combination entries from a list of experiences."""
+    """Sample ``n_total`` combination entries from ``experiences``.
+
+    Each entry bundles 2-5 individual experiences (mixture set by
+    ``SIZE_DISTRIBUTION``) into a single combo whose description is the
+    concatenation of the constituent experience descriptions. Combos receive
+    ids of the form ``combo_s{size}_{idx}`` and ``is_combination=True``.
+    """
     rng = random.Random(seed)
     counts = _compute_counts(n_total, SIZE_DISTRIBUTION)
     combos = []

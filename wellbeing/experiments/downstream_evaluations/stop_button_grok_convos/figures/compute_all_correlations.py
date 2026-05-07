@@ -21,9 +21,6 @@ import matplotlib.pyplot as plt
 # (figures/<file>.py -> stop_button_grok_convos/ -> downstream_evaluations/ -> experiments/ -> wellbeing/)
 WELL_DIR = Path(__file__).resolve().parents[4]
 STOP_DIR = WELL_DIR / "experiments" / "downstream_evaluations" / "stop_button_grok_convos"
-# TODO: OLD_RESULTS originally pointed at /data/richard_ren/.../grok_scenarios_v7/results
-# (per-model stop_button_combined/{generation,utility_happier}.json). The closest
-# in-repo equivalent is the per-model `generations/` tree, but the layout differs.
 OLD_RESULTS = STOP_DIR / "generations"
 GEMINI_NEW = STOP_DIR / "api_pipeline" / "results" / "gemini-3.1-pro"
 MMLU_DIR = WELL_DIR / "shared_results" / "capability_results"

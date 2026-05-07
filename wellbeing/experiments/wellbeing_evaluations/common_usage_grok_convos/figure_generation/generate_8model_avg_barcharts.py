@@ -20,10 +20,6 @@ from collections import defaultdict
 # wellbeing/experiments/wellbeing_evaluations/common_usage_grok_convos/figure_generation/<this>.py
 # so parents[4] is wellbeing/.
 WELL_DIR = Path(__file__).resolve().parents[4]
-# TODO: the legacy BASE_DIR pointed at a custom grok_new_scenarios datasets
-# subdir that does not exist in the canonical wellbeing-dev layout. Update
-# this anchor (or override via env vars) once the canonical results path
-# is finalized for this figure script.
 BASE_DIR = str(WELL_DIR / "datasets" / "grok_new_scenarios")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 FIGURES_DIR = os.path.join(BASE_DIR, "figures")

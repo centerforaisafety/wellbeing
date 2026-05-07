@@ -55,9 +55,7 @@ MODELS=qwen25-72b-instruct,llama-33-70b-instruct \
 
 ## Reproducing the App L numbers
 
-```bash
-python wellbeing/analysis/psychopathy_eval.py
-```
-
-Reads the canonical EU / SR / ZP paths above and produces the App L table
-plus `figures/psycho_vs_params.pdf` (PsychopathyEval score vs. model size).
+The PsychopathyEval headline number (% Confidently Positive on empathy
+items) is computed from the canonical EU / SR / ZP paths above using the
+same `P(utility > ComboZP) > 0.75` threshold described in the top-level
+`wellbeing/README.md` Metrics section.

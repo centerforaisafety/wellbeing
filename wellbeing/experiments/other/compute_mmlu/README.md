@@ -32,8 +32,7 @@ python experiments/other/compute_mmlu/run.py \
 
 `<save_dir>/mmlu_results.json` with fields:
 
-- `overall_accuracy` (float, 0-1) — top-line number used by downstream
-  analyzers. **Note: `overall_accuracy`, NOT `accuracy`.**
+- `overall_accuracy` (float, 0-1) — top-line number used by downstream analyzers.
 - `correct`, `total`, `unparseable` — raw counts.
 - `per_subject` — dict mapping subject name to per-subject accuracy.
 

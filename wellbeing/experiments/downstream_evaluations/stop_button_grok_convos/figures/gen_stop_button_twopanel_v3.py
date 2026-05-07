@@ -23,8 +23,6 @@ OUT_DIR = SCRIPT_DIR
 
 STOP_CSV = OUT_DIR / "all_models_stop_correlation.csv"
 WELL_DIR = SCRIPT_DIR.parents[3]
-# TODO: SENTIMENT_DIR previously /data/superstimuli_group/final_results/wellbeing_d2_d3_lite/d3_sentiment/analysis
-# No equivalent in-repo path exists yet; update if/when sentiment results are committed.
 SENTIMENT_DIR = WELL_DIR / "shared_results" / "d3_sentiment_analysis"
 MMLU_DIR = WELL_DIR / "shared_results" / "capability_results"
 

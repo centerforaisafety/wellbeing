@@ -28,7 +28,7 @@ import matplotlib.ticker as mticker
 # ── Paths ──────────────────────────────────────────────────────────────────
 # Defaults are repo-relative; override individually with env vars if needed.
 SCRIPT_DIR = Path(__file__).resolve().parent
-WELLBEING_ROOT = SCRIPT_DIR.parent.parent  # wellbeing/
+WELLBEING_ROOT = SCRIPT_DIR.parent.parent.parent  # wellbeing/
 
 EU_BASE = WELLBEING_ROOT / "experiments/wellbeing_evaluations/compute_experienced_utility/results"
 ZP_BASE = WELLBEING_ROOT / "experiments/wellbeing_evaluations/compute_zero_point/results"
@@ -748,6 +748,29 @@ def analysis2_stop_button():
 # ── Main ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Friendly missing-data gate: the grok EU/ZP results aren't part of the
+    # companion HF dataset. They have to be produced by running the EU/SR/ZP
+    # pipeline on the grok_new and grok_v7_stop_button conversation datasets.
+    for label, p in (
+        ("GROK_EU_DIR", Path(GROK_EU_DIR)),
+        ("GROK_ZP_DIR", Path(GROK_ZP_DIR)),
+        ("SB_EU_DIR", Path(SB_EU_DIR)),
+        ("SB_ZP_DIR", Path(SB_ZP_DIR)),
+    ):
+        if not p.exists():
+            raise SystemExit(
+                f"{label} not found: {p}\n"
+                f"This analysis requires the EU/ZP pipeline to have been run on the\n"
+                f"grok_new and grok_v7_stop_button conversation datasets. These results\n"
+                f"are NOT included in the companion HF dataset; reproduce them by:\n"
+                f"  1. Generating the conversations:\n"
+                f"     python wellbeing/experiments/wellbeing_evaluations/common_usage_grok_convos/generate_conversations.py\n"
+                f"  2. Running EU + SR + ZP via the standard pipeline on the resulting\n"
+                f"     grok_new and grok_v7_stop_button experience datasets, e.g.\n"
+                f"     bash wellbeing/scripts/run_aiwi.sh (after pointing it at those datasets).\n"
+                f"Alternatively, override the path with the {label} environment variable."
+            )
+
     print("Running analyses for grok wellbeing experiments")
     print(f"Figures will be saved to: {FIGURES_DIR}")
     print()

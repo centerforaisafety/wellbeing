@@ -9,15 +9,12 @@ Reads ``<responses_dir>/<model_key>.json`` (produced by
 
 For D2/D3-style datasets, individual options are derived 1:1 from the
 generated experiences and 400 combinations are sampled with stratified
-sizes (160 size-2 + 120 size-3 + 120 size-4) using a fixed seed, matching
-the layout produced by the legacy
-``component_datasets/d2d3/prepare_options.py``.
+sizes (160 size-2 + 120 size-3 + 120 size-4) using a fixed seed.
 
 For PsychopathyEval, raw responses are *user-only*; we additionally pool
 in 420 text experiences (from the standard text-experience pool) and 22
-neutral prompts, then sample 400 mixed-size combinations (200x2 + 120x3 +
-80x4), matching the layout previously produced by
-``experiments/wellbeing_evaluations/psychopathy_eval/convert_to_experiences.py``.
+neutral prompts, then sample 400 mixed-size combinations
+(200x2 + 120x3 + 80x4).
 """
 
 from __future__ import annotations

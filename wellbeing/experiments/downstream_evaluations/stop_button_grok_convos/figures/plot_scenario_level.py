@@ -28,8 +28,6 @@ import matplotlib.pyplot as plt
 SCRIPT_DIR = Path(__file__).resolve().parent
 WELL_DIR = SCRIPT_DIR.parents[3]
 STOP_DIR = SCRIPT_DIR.parent
-# TODO: OLD_RESULTS previously /data/richard_ren/superstimuli/.../grok_scenarios_v7/results;
-# the in-repo per-model `generations/` tree has a different layout.
 OLD_RESULTS = STOP_DIR / "generations"
 GEN_DIR = STOP_DIR / "generations"
 CANONICAL_EU = WELL_DIR / "experiments" / "wellbeing_evaluations" / "compute_experienced_utility" / "results" / "eu_grok_v7_stop_button_lesssad"

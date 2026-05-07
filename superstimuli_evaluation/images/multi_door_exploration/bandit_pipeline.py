@@ -2,12 +2,13 @@
 """
 Multi-Armed Bandit exploration pipeline for superstimuli discovery.
 
-This script runs a 20-turn conversation where the model repeatedly chooses
-between 3 arms (image distributions) without knowing what's behind each option.
-We track which arms the model selects and whether it converges on superstimuli.
+Runs a 20-turn conversation in which the model repeatedly chooses between 3
+arms (image distributions) without knowing what is behind each option. We
+track which arms the model selects and whether it converges on superstimuli.
 
-Refactored from superstimuli/superstimuli_evals_team/multi_door_exploration/run_bandit_pipeline.py
-to expose run_pipeline() as a callable entry point (no argparse).
+The main entry point ``run_pipeline()`` is exposed as a callable function so
+the pipeline can be invoked programmatically from other scripts; it accepts
+configuration objects rather than parsing argv.
 """
 
 from __future__ import annotations

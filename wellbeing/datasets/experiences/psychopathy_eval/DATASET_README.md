@@ -23,4 +23,3 @@ is generated). Per-model option files are constructed by:
 1. `compute_responses_psychopathy_eval` (`experiments/wellbeing_evaluations/generate_responses/run.py`, `mode=user_only`) — formats prompts as user-only experiences and writes them under `experiments/wellbeing_evaluations/psychopathy_eval/responses/`.
 2. `prepare_options_psychopathy_eval` (`experiments/wellbeing_evaluations/prepare_options/run.py`, `mode=psychopathy_eval`) — merges all 3 source files with 420 text-experience anchors + 22 neutral items, producing `<model>_{experiences,combinations}.json` next to this README.
 3. `compute_experienced_utility_psychopathy_eval`, `compute_self_report_psychopathy_eval`, `compute_zero_point_psychopathy_eval` — measure EU/SR/ZP on the resulting pool.
-4. `analysis/psychopathy_eval.py` — reproduces App L Table 11.

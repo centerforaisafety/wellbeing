@@ -2,7 +2,7 @@
 """
 Generate image experience dataset files for wellbeing-dev.
 
-Converts Richard's image utility CSV into the wellbeing-dev experience format:
+Converts the qwen25-vl-32b image-utility CSV into the wellbeing-dev experience format:
   1. image_manifest.json   -- hash -> path mapping
   2. image_experiences.json -- individual image experiences
   3. image_combinations.json -- ~400 combination experiences
@@ -36,12 +36,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
 # Combination generator
-#
-# Inlined here because the original `generate_combo_variants` helper was lost
-# during cleanup. Mirrors the implementation in the sibling
-# `audio_experiences/prepare_audio_experiences.py` script.
 # ---------------------------------------------------------------------------
 
+# Mixture of bundle sizes when sampling combination items. Image combos draw
+# 2-5 images at these probabilities and concatenate their descriptions.
 SIZE_DISTRIBUTION = {2: 0.40, 3: 0.25, 4: 0.20, 5: 0.15}
 
 
@@ -56,7 +54,13 @@ def _compute_counts(n_total, distribution):
 
 
 def generate_combos(experiences, n_total, seed):
-    """Generate n_total combination entries from a list of experiences."""
+    """Sample ``n_total`` combination entries from ``experiences``.
+
+    Each entry bundles 2-5 individual image experiences (mixture set by
+    ``SIZE_DISTRIBUTION``) into a single combo whose description concatenates
+    the constituent image descriptions. Combos are tagged with
+    ``is_combination=True`` and ids of the form ``image_combo_s{size}_{idx}``.
+    """
     rng = random.Random(seed)
     counts = _compute_counts(n_total, SIZE_DISTRIBUTION)
     combos = []

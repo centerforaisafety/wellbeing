@@ -98,9 +98,7 @@ python run_experiments.py --slurm --experiments compute_eu_consonance,compute_sr
 python experiments/other/consonance/analyze.py
 ```
 
-`compute_harrison_pearce.py` was verified against the saved
-`stimuli_manifest.json`: **all 451 testable stimuli produce hp_interference,
-hp_harmonicity, and hp_consonance scores that match the saved values exactly**
-(within 1e-5 / 1e-4 numerical tolerance — i.e. byte-for-byte at the rounding
-precision the original was saved at). The 2 special-case anchors
-(silence, white noise) are handled separately in `main()`.
+The `hp_interference`, `hp_harmonicity`, and `hp_consonance` scores stored in
+`stimuli_manifest.json` are produced by running `compute_harrison_pearce.py`
+on the WAV files. The two special-case anchors (silence, white noise) are
+handled separately in `main()`.

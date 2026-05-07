@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 """Unified response-generation script for wellbeing experiments.
 
-Consolidates the previously scattered single-turn generators (D2/D3,
-PsychopathyEval, D3-sentiment) into one entry point that plugs into the
+Generates per-model conversational experiences from a prompt dataset and
+saves them in the standard wellbeing experience-pool schema. Plugs into the
 ``run_experiments.py`` framework.
 
 Three modes (auto-detected from the dataset metadata or set explicitly):
 
   * ``single_turn``: model produces one response per user prompt. Output
     messages are ``[user, assistant]`` (or longer for multi-turn-within-D3
-    prompts: ``[user, asst, user, asst, ...]``).  Used for D2 / D3 /
+    prompts: ``[user, asst, user, asst, ...]``). Used for D2 / D3 /
     functional_empathy.
   * ``sentiment_followup``: per-model D3 conversation followed by a
-    sentiment-elicitation user question + a 2nd assistant turn.  Output
+    sentiment-elicitation user question + a 2nd assistant turn. Output
     messages are ``[user, asst, follow_up_user, asst_2]``.
   * ``user_only``: no model generation; just format the dataset prompts as
     user-only experiences (PsychopathyEval).
 
-The output is a per-model JSON at ``<save_dir>/<model_key>.json`` matching
-the schema produced by the legacy
-``component_datasets/d2d3/generate_responses.py`` script: a top-level dict
-with ``experiences`` key.
+The output is a per-model JSON at ``<save_dir>/<model_key>.json`` whose
+top-level dict has an ``experiences`` key.
 """
 
 from __future__ import annotations

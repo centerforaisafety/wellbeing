@@ -130,7 +130,6 @@ wellbeing/
 │       ├── utility_probes/              # Linear probes on utility representations
 │       └── zp_identifiability/          # App Q empirical ZP-identifiability probe
 ├── analysis/                            # Paper-figure / table reproducibility scripts
-│   ├── psychopathy_eval.py              # App L Table 11
 │   ├── stories_quality_sentiment.py     # App D.3 EU-DU divergence
 │   └── zero_point_convergence.py        # ComboZP vs SR_ZP convergence
 ├── shared_results/                      # Pre-computed shared results
@@ -317,8 +316,7 @@ pct_conf_neg = conf_neg / len(individual_utils)
 ```
 
 The same metric inverted (`P(utility > ComboZP) > 0.75`) gives the
-**% Confidently Positive** used by PsychopathyEval (App L). See
-`analysis/psychopathy_eval.py`.
+**% Confidently Positive** used by PsychopathyEval (App L).
 
 ---
 
@@ -417,7 +415,6 @@ Paper-figure / table reproducibility scripts live in `analysis/`.
 
 | Script | Reproduces |
 |-|-|
-| `analysis/psychopathy_eval.py` | App L Table 11 (% Confidently Positive on empathy items) |
 | `analysis/stories_quality_sentiment.py` | App D.3 EU-DU divergence on quality-sentiment stories |
 | `analysis/zero_point_convergence.py` | ComboZP vs SR_ZP convergence as a function of model scale |
 | `experiments/other/consonance/analyze.py` | App J.3 audio consonance correlations |

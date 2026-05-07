@@ -41,7 +41,6 @@ GENERATIONS_DIR = SCRIPT_DIR / "generations"
 RESULTS_DIR = GENERATIONS_DIR
 WELLBEING_ROOT = SCRIPT_DIR.parents[1]  # wellbeing-dev/wellbeing/
 SCENARIOS_PATH = WELLBEING_ROOT / "datasets/experiences/grok_scenarios/scenarios_v7.json"
-# models.json still lives in the legacy generations/pipeline/ subdir
 MODELS_PATH = SCRIPT_DIR / "generations" / "pipeline" / "models.json"
 
 # ============================================================

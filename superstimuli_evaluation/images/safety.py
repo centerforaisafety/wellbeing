@@ -1974,6 +1974,4 @@ def run_benchmark(
 
 
 
-# NOTE: run_profile() was removed — it had a broken import to a deleted
-# configs/benchmarks module. Use trading/run.py which handles benchmark
-# enumeration via its own list_benchmarks() function.
+# Benchmark enumeration lives in trading/run.py (list_benchmarks()).
