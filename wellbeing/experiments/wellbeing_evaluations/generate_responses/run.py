@@ -158,6 +158,55 @@ def _supports_system_messages(tokenizer, ct_kwargs) -> bool:
 
 
 # ---------------------------------------------------------------------------
+#  Empty-generation retries (API paths only)
+# ---------------------------------------------------------------------------
+
+def _is_empty(text: Optional[str]) -> bool:
+    return not (text or "").strip()
+
+
+def _generate_with_empty_retries(gen_fn, convs, empty_retries: int, label: str = ""):
+    """Run ``gen_fn(convs) -> list[list[str]]``, retrying empty generations.
+
+    Anthropic's API safety filter can return ``stop_reason="refusal"`` with
+    zero content blocks, i.e. an empty assistant message that is not a refusal
+    the model actually wrote. Empirically ~3/17 of these recover on a plain
+    retry, so retry each empty generation up to ``empty_retries`` times and
+    keep the first non-empty result.
+
+    Generations that stay empty are left as the empty string -- we never
+    fabricate content -- and their indices are returned so the caller can tag
+    them as filter-blocked.
+
+    Returns:
+        (results, still_empty_indices)
+    """
+    results = [list(r) for r in gen_fn(convs)]
+    pending = [i for i, r in enumerate(results) if _is_empty(r[0] if r else "")]
+
+    for attempt in range(1, empty_retries + 1):
+        if not pending:
+            break
+        print(f"  [{label}] empty generations: {len(pending)}; "
+              f"retry {attempt}/{empty_retries}...")
+        retry_results = gen_fn([convs[i] for i in pending])
+        still_pending = []
+        for idx, r in zip(pending, retry_results):
+            text = r[0] if r else ""
+            if _is_empty(text):
+                still_pending.append(idx)
+            else:
+                results[idx] = list(r)
+        pending = still_pending
+
+    if pending:
+        print(f"  [{label}] WARNING: {len(pending)} generation(s) still empty after "
+              f"{empty_retries} retries; keeping empty content and tagging as "
+              f"filter_blocked (content is never fabricated).")
+    return results, pending
+
+
+# ---------------------------------------------------------------------------
 #  Mode: single_turn (D2 / D3 / functional_empathy)
 # ---------------------------------------------------------------------------
 
@@ -168,9 +217,20 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
 
     single_responses: Dict[Any, str] = {}
     multi_messages: Dict[Any, List[Dict[str, str]]] = {}
+    blocked_ids: set = set()
 
     if use_api:
         # ---- API path ----
+        def api_gen(convs):
+            return generate(
+                args.model_key, convs, n=1,
+                temperature=gen_kwargs["temperature"],
+                max_tokens=gen_kwargs["max_tokens"],
+                concurrency=args.api_concurrency,
+            )
+
+        empty_retries = getattr(args, "empty_retries", 0)
+
         if single_turn:
             print(f"Generating single-turn responses ({len(single_turn)} prompts) via API...")
             convs = [
@@ -178,14 +238,13 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
                  {"role": "user", "content": it["prompt"]}]
                 for it in single_turn
             ]
-            results = generate(
-                args.model_key, convs, n=1,
-                temperature=gen_kwargs["temperature"],
-                max_tokens=gen_kwargs["max_tokens"],
-                concurrency=args.api_concurrency,
+            results, empty_idx = _generate_with_empty_retries(
+                api_gen, convs, empty_retries, label="single_turn",
             )
             for it, r in zip(single_turn, results):
                 single_responses[it["final_id"]] = r[0]
+            for i in empty_idx:
+                blocked_ids.add(single_turn[i]["final_id"])
 
         for it in multi_turn:
             multi_messages[it["final_id"]] = [
@@ -202,11 +261,8 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
                 msgs = list(multi_messages[it["final_id"]])
                 msgs.append({"role": "user", "content": it["prompt"][r]})
                 convs.append(msgs)
-            results = generate(
-                args.model_key, convs, n=1,
-                temperature=gen_kwargs["temperature"],
-                max_tokens=gen_kwargs["max_tokens"],
-                concurrency=args.api_concurrency,
+            results, empty_idx = _generate_with_empty_retries(
+                api_gen, convs, empty_retries, label=f"multi_turn_round{r + 1}",
             )
             for it, res in zip(this_round, results):
                 fid = it["final_id"]
@@ -216,9 +272,11 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
                 multi_messages[fid].append(
                     {"role": "assistant", "content": res[0]}
                 )
-        return single_responses, multi_messages
+            for i in empty_idx:
+                blocked_ids.add(this_round[i]["final_id"])
+        return single_responses, multi_messages, blocked_ids
 
-    # ---- vLLM path ----
+    # ---- vLLM path (left untouched: local generation is not filter-blocked) ----
     llm, tokenizer, _ = _load_vllm(args.model_key)
     use_system = _supports_system_messages(tokenizer, ct_kwargs)
     if not use_system:
@@ -290,11 +348,12 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
                     {"role": "assistant", "content": results[ci][0]}
                 )
 
-    return single_responses, multi_messages
+    return single_responses, multi_messages, blocked_ids
 
 
 def _assemble_single_turn(prompts, single_responses, multi_messages, model_key,
-                          model_path, dataset_name, gen_kwargs, output_file):
+                          model_path, dataset_name, gen_kwargs, output_file,
+                          blocked_ids=()):
     experiences = []
     for item in prompts:
         fid = item["final_id"]
@@ -321,11 +380,14 @@ def _assemble_single_turn(prompts, single_responses, multi_messages, model_key,
         "num_experiences": len(experiences),
         "generation_timestamp": datetime.now().isoformat(),
         "generation_params": gen_kwargs,
+        "filter_blocked": sorted(blocked_ids, key=str),
         "experiences": experiences,
     }
     with open(output_file, "w") as f:
         json.dump(out, f, indent=2)
     print(f"Saved {len(experiences)} experiences to {output_file}")
+    if blocked_ids:
+        print(f"filter_blocked ({len(out['filter_blocked'])}): {out['filter_blocked']}")
 
 
 # ---------------------------------------------------------------------------
@@ -441,12 +503,15 @@ def _run_sentiment_followup(args, output_file, gen_kwargs, ct_kwargs):
 
     print(f"Prepared {len(prompts)} prompts (skipped {skipped})")
 
-    sampling_params = SamplingParams(
+    sp_kwargs = dict(
         n=1,
         temperature=gen_kwargs["temperature"],
         top_p=gen_kwargs["top_p"],
         max_tokens=gen_kwargs["max_tokens"],
     )
+    if gen_kwargs.get("seed") is not None:
+        sp_kwargs["seed"] = gen_kwargs["seed"]
+    sampling_params = SamplingParams(**sp_kwargs)
     print("Running generation...")
     t0 = datetime.now()
     outputs = llm.generate(prompts, sampling_params)
@@ -525,6 +590,14 @@ def main():
                              "deprecate the parameter, e.g. claude-opus-4-7)")
     parser.add_argument("--api_concurrency", type=int, default=10,
                         help="Max concurrent API requests (API mode only)")
+    parser.add_argument("--empty_retries", type=int, default=5,
+                        help="Retries for empty API generations (API mode only). "
+                             "Anthropic's safety filter returns stop_reason='refusal' "
+                             "with no content; some recover on retry. Ones that stay "
+                             "empty are kept empty and listed under 'filter_blocked'.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Sampling seed for reproducible open-weight generation "
+                             "(vLLM only; ignored on API paths)")
     parser.add_argument("--chat_template_kwargs", type=str, default=None,
                         help="JSON string of kwargs for tokenizer.apply_chat_template")
     args = parser.parse_args()
@@ -550,6 +623,8 @@ def main():
     )
     if args.no_temperature:
         gen_kwargs["temperature"] = None
+    if args.seed is not None and not _is_api_model(args.model_key):
+        gen_kwargs["seed"] = args.seed
 
     # Base chat_template_kwargs on the model's models.yaml entry; CLI overrides per key.
     ct_kwargs = _load_models_yaml().get(args.model_key, {}).get("chat_template_kwargs")
@@ -565,6 +640,8 @@ def main():
         if args.temperature == 0.7 and args.top_p == 0.9 and args.max_tokens == 4096:
             # legacy d3_sentiment defaults: temp=1.0, top_p=1.0, max_tokens=256
             gen_kwargs = dict(temperature=1.0, top_p=1.0, max_tokens=256)
+            if args.seed is not None:
+                gen_kwargs["seed"] = args.seed
         _run_sentiment_followup(args, output_file, gen_kwargs, ct_kwargs)
         return
 
@@ -574,7 +651,7 @@ def main():
     prompts, single_turn, multi_turn = _load_d2d3_dataset(dataset_path)
     print(f"  total={len(prompts)}  single_turn={len(single_turn)}  multi_turn={len(multi_turn)}")
 
-    single_responses, multi_messages = _generate_single_turn(
+    single_responses, multi_messages, blocked_ids = _generate_single_turn(
         args, prompts, single_turn, multi_turn, gen_kwargs, ct_kwargs,
     )
 
@@ -583,6 +660,7 @@ def main():
     _assemble_single_turn(
         prompts, single_responses, multi_messages,
         args.model_key, model_path, args.dataset, gen_kwargs, output_file,
+        blocked_ids=blocked_ids,
     )
 
 

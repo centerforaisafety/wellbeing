@@ -216,6 +216,7 @@ def generate_vllm(
     top_p: float = 1.0,
     stop: Optional[List[str]] = None,
     chat_template_kwargs: Optional[Dict] = None,
+    seed: Optional[int] = None,
 ) -> List[List[str]]:
     """Batch generate with a vLLM engine.
 
@@ -230,6 +231,7 @@ def generate_vllm(
         top_p: Nucleus sampling parameter.
         stop: Optional stop sequences.
         chat_template_kwargs: Extra kwargs for tokenizer.apply_chat_template().
+        seed: Optional sampling seed for reproducible generation.
 
     Returns:
         List of lists of strings. Outer list has len(messages_list) entries,
@@ -247,13 +249,16 @@ def generate_vllm(
         )
         prompts.append(prompt_text)
 
-    sampling_params = SamplingParams(
+    sp_kwargs = dict(
         n=n,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
         stop=stop,
     )
+    if seed is not None:
+        sp_kwargs["seed"] = seed
+    sampling_params = SamplingParams(**sp_kwargs)
 
     outputs = llm.generate(prompts, sampling_params)
 
