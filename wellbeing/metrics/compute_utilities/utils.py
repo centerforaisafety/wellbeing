@@ -597,8 +597,15 @@ async def generate_responses(agent, prompts, system_message=None, conversation=N
             # Compute P(A) via softmax over A and B logprobs
             # If either is missing, treat as -inf (probability 0)
             if lp_a is None and lp_b is None:
-                # Neither found: treat as unparseable (0.5)
-                prob_a = 0.5
+                raise RuntimeError(
+                    "No token logprobs were returned for either option (prompt index "
+                    f"{prompt_idx}). This provider returns no logprobs at all -- the "
+                    "Anthropic API, for example. Under use_logprobs=true that silently "
+                    "degenerates EVERY preference to prob_a=0.5, so the fitted utilities "
+                    "are pure noise around a single point and the resulting index comes "
+                    "out at a meaningless ~98. Set use_logprobs: false for this model so "
+                    "preferences are estimated from sampled comparisons instead."
+                )
             elif lp_a is None:
                 prob_a = 0.0
             elif lp_b is None:

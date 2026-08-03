@@ -5,12 +5,12 @@
 # 1-step async driver: submits the full per-model pipeline as a SLURM
 # dependency chain and returns immediately. Runs the stable AIWI measurement
 # (2048-token-capped responses, fixed model-agnostic bundles shared across
-# models, random-sampling EU, hard-hinge ZP):
+# models, random-sampling EU, expected-hinge ZP):
 #
 #   compute_responses_d2_cap2048  (GPU, per-model conversations, max_tokens=2048)
 #         -> prepare_options_d2_cap2048  (CPU, materializes the fixed bundle design)
 #               -> compute_eu_d2_cap2048 (random sampling) + compute_sr_d2  (GPU)
-#                     -> compute_zero_point_d2_cap2048  (CPU, hard hinge)
+#                     -> compute_zero_point_d2_cap2048  (CPU, expected hinge)
 #
 # After all jobs complete, view the AIWI leaderboard with:
 #

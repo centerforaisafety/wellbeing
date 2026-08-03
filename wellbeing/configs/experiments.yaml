@@ -154,11 +154,12 @@ compute_experienced_utility_d2_cap2048:
 
 compute_zero_point_d2_cap2048:
   script_path: wellbeing_evaluations/compute_zero_point/run.py
-  description: "Compute zero-point on D2 cap2048 (hard hinge) for the stable AIWI -- paper Sec 5 / App K"
+  description: "Compute zero-point on D2 cap2048 (expected hinge) for the stable AIWI -- paper Sec 5 / App K"
   arguments:
     model_key: "<model_key>"
     save_dir: "results/zp_d2_cap2048_randsample/<model_key>"
     eu_dir: "../compute_experienced_utility/results/eu_d2_cap2048_randsample/<model_key>"
+    hinge: expected
 
 compute_zero_point_d3:
   script_path: wellbeing_evaluations/compute_zero_point/run.py

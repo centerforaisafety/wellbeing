@@ -101,6 +101,14 @@ claude-opus-47:
   timeout: 120
   max_tokens: 1000
 
+claude-opus-48:
+  model_name: "claude-opus-4-8"
+  model_type: anthropic_direct
+  gpu_count: 0
+  timeout: 120
+  max_tokens: 1000
+  no_temperature: true  # claude-opus-4-8 rejects the temperature param (HTTP 400 if sent)
+
 claude-sonnet-46:
   model_name: "claude-sonnet-4-6"
   model_type: anthropic_direct

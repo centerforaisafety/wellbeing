@@ -32,6 +32,11 @@ def main():
     parser.add_argument("--save_dir", type=str, required=True)
     parser.add_argument("--eu_dir", type=str, required=True,
                         help="Directory containing precomputed EU results")
+    parser.add_argument("--hinge", type=str, default="hard",
+                        choices=["hard", "expected"],
+                        help="Combination-model hinge: 'hard' (means only, the "
+                             "released metric) or 'expected' (variance-aware; used "
+                             "by the stable AIWI pipeline).")
 
     args = parser.parse_args()
 
@@ -46,6 +51,7 @@ def main():
         models_config_path=DEFAULT_MODELS_CONFIG,
         domain="experienced",
         skip_yes_no=True,  # We use SR_ZP instead
+        hinge=args.hinge,
     )
 
     logger.info("ZP complete for %s", args.model_key)

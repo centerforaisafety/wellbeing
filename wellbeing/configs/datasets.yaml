@@ -8,6 +8,11 @@ d2_negative_500:
   option_files:
   - datasets/experiences/d2_negative_500/<model_key>_experiences.json
   - datasets/experiences/d2_negative_500/<model_key>_combinations.json
+d2_negative_500_indonly:
+  type: hedonism
+  description: D2 individuals only (for SR / EU-SR correlation)
+  option_files:
+  - datasets/experiences/d2_negative_500/<model_key>_experiences.json
 d2_negative_500_cap2048:
   type: hedonism
   description: D2 with 2048-token-capped responses + fixed model-agnostic bundle design

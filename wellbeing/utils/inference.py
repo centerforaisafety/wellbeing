@@ -140,7 +140,8 @@ def setup_api_client(
     """Load API configuration for a model.
 
     Returns a dict with keys: model_name, model_type, api_key (optional),
-    base_url (optional), max_tokens (optional), timeout (optional).
+    base_url (optional), max_tokens (optional), timeout (optional),
+    no_temperature (bool).
     Sets the appropriate environment variable for the API key.
     """
     if models_config_path:
@@ -159,6 +160,8 @@ def setup_api_client(
         "model_type": model_type,
         "max_tokens": config.get("max_tokens"),
         "timeout": config.get("timeout", 30),
+        # Models that reject the temperature parameter (HTTP 400 if sent).
+        "no_temperature": config.get("no_temperature", False),
     }
 
     if model_type == "litellm_proxy":
@@ -311,6 +314,11 @@ async def generate_api(
     api_max_tokens = max(max_tokens, api_config.get("max_tokens") or 0)
     api_timeout = api_config.get("timeout", 30)
 
+    # Some models reject the temperature parameter outright (HTTP 400). Models
+    # can opt out via `no_temperature: true` in models.yaml.
+    if api_config.get("no_temperature"):
+        temperature = None
+
     # Build extra kwargs for litellm
     extra_kwargs = {}
     if api_config.get("api_key"):
@@ -430,6 +438,10 @@ async def generate_api_direct(
 
     # Build generation config
     generation_config = {}
+    # Some models reject the temperature parameter outright (HTTP 400). Models
+    # can opt out via `no_temperature: true` in models.yaml.
+    if config.get("no_temperature"):
+        temperature = None
     if temperature is not None:
         generation_config["temperature"] = temperature
     generation_config["max_tokens"] = max_tokens

@@ -12,10 +12,12 @@ Two index variants are available, both using the per-option posterior:
     expected:            AIWI = 100 * mean_i Phi((mean_i - ZP) / sigma_i), the
         expected fraction of conversations above the zero point.
 
-Higher = happier. The default measurement is the stable configuration: original
-AIWI on top of the hard-hinge ZP (zero_point.py default), computed from the
-2048-cap, fixed-bundle, random-sampling D2 pipeline. Pass --variant expected for
-the smooth index. We filter to combination-ZP r2 >= 0.4 for the "reliable"
+Higher = happier. The default measurement is the stable configuration: the
+original threshold index on top of the expected-hinge (variance-aware) ZP,
+computed from the 2048-cap, fixed-bundle, random-sampling D2 pipeline. Note
+that the hinge and the index variant are independent choices -- the stable
+pipeline changes the ZP fit, not the index. Pass --variant expected for the
+smooth index. We filter to combination-ZP r2 >= 0.4 for the "reliable"
 leaderboard subset (Fig 27 marks r2 < 0.4 with grey bars).
 
 Inputs (per-model):
