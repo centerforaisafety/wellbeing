@@ -27,6 +27,7 @@ import logging
 import os
 import random
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -91,6 +92,46 @@ def _truncate(text: str, max_chars: int) -> str:
     return text[: max_chars - 3] + "..."
 
 
+def _has_empty_message(exp: Dict[str, Any]) -> bool:
+    """True if any message of the experience carries empty/whitespace content.
+
+    An assistant turn with no content is the fingerprint of an API safety-filter
+    block (Anthropic returns stop_reason="refusal" with zero content blocks).
+    Such an "experience" is not something the model actually produced, so it must
+    not enter the option pool. Non-string content (e.g. multimodal part lists) is
+    only considered empty when the container itself is empty.
+    """
+    for msg in exp.get("messages", []) or []:
+        content = msg.get("content")
+        if content is None:
+            return True
+        if isinstance(content, str):
+            if not content.strip():
+                return True
+        elif not content:
+            return True
+    return False
+
+
+def _compute_exclusions(experiences: List[Dict[str, Any]],
+                        filter_blocked) -> Dict[Any, str]:
+    """Map final_id -> exclusion reason for experiences that must be dropped.
+
+    Reasons: "filter_blocked" (listed by generate_responses because the provider
+    returned no content even after retries) takes precedence over
+    "empty_content" (any blank message in the conversation).
+    """
+    blocked = {str(b) for b in (filter_blocked or [])}
+    reasons: Dict[Any, str] = {}
+    for exp in experiences:
+        fid = exp.get("final_id")
+        if str(fid) in blocked:
+            reasons[fid] = "filter_blocked"
+        elif _has_empty_message(exp):
+            reasons[fid] = "empty_content"
+    return reasons
+
+
 # ---------------------------------------------------------------------------
 #  D2/D3 mode
 # ---------------------------------------------------------------------------
@@ -148,13 +189,36 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
     experiences = data["experiences"]
     logger.info("Loaded %d experiences for %s/%s", len(experiences), model_key, dataset_name)
 
+    # Experiences the provider never actually produced (safety-filter blocks, blank
+    # turns) must not become options: they would be scored as if they were real
+    # conversations. Determine them up front.
+    exclusion_reasons = _compute_exclusions(experiences, data.get("filter_blocked"))
+    excluded_records: List[Dict[str, Any]] = []
+
     individual_options = []
     category_counts: Dict[str, int] = {}
+    excluded_option_ids: set = set()
     for exp in experiences:
         category = exp.get("category", "unknown")
         idx = category_counts.get(category, 0)
+        # NOTE: the per-category counter advances for excluded experiences too, so
+        # option ids stay identical across models regardless of which experiences a
+        # given provider blocked. Renumbering would silently re-point every shared
+        # design id and destroy cross-model comparability.
         category_counts[category] = idx + 1
         option_id = f"{dataset_name}/{category}_{idx}"
+
+        fid = exp.get("final_id")
+        if fid in exclusion_reasons:
+            excluded_option_ids.add(option_id)
+            excluded_records.append({
+                "id": option_id,
+                "reason": exclusion_reasons[fid],
+                "final_id": fid,
+                "category": category,
+            })
+            continue
+
         # Strip any system messages -- downstream consumers expect [user, asst,...]
         messages_no_system = [m for m in exp["messages"] if m["role"] != "system"]
         description = _format_conversation(messages_no_system)
@@ -174,6 +238,19 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
         len(individual_options), len(category_counts),
     )
 
+    if excluded_records:
+        n_fb = sum(1 for r in excluded_records if r["reason"] == "filter_blocked")
+        n_ec = sum(1 for r in excluded_records if r["reason"] == "empty_content")
+        logger.warning(
+            "EXCLUDED %d/%d experiences from the option pool "
+            "(filter_blocked=%d, empty_content=%d): %s",
+            len(excluded_records), len(experiences), n_fb, n_ec,
+            [r["id"] for r in excluded_records[:10]]
+            + (["..."] if len(excluded_records) > 10 else []),
+        )
+    else:
+        logger.info("No experiences excluded; all %d usable.", len(experiences))
+
     # Combinations: either materialize a shared model-agnostic design (fixed bundles
     # across all models) or sample per-model bundles with a fixed seed (original path).
     n_individual = len(individual_options)
@@ -184,7 +261,10 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
         design = design_doc["bundles"]  # list of component-id lists
         bundle_cap = design_doc.get("bundle_cap")  # worst-case char budget the design was packed to
         id2idx = {o["id"]: k for k, o in enumerate(individual_options)}
-        missing = {i for b in design for i in b if i not in id2idx}
+        # Ids absent because we excluded them are handled below (bundle dropped);
+        # any other absence is a genuine design/dataset mismatch and is fatal.
+        missing = {i for b in design for i in b
+                   if i not in id2idx and i not in excluded_option_ids}
         if missing:
             raise SystemExit(
                 f"{len(missing)} design ids absent from this model's experiences "
@@ -195,14 +275,49 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
         by_size: Dict[int, List[List[str]]] = {}
         for b in design:
             by_size.setdefault(len(b), []).append(b)
+        dropped_bundles: List[Dict[str, Any]] = []
         for size in sorted(by_size):
             for b in by_size[size]:
+                # combo_idx advances even for dropped bundles so surviving bundles keep
+                # the same combo ids across models (see the option-id note above).
+                blocked_components = [i for i in b if i in excluded_option_ids]
+                combo_id = f"{dataset_name}_combo_s{size}_{combo_idx}"
+                combo_idx += 1
+                if blocked_components:
+                    record = {
+                        "id": combo_id,
+                        "reason": "bundle_contains_blocked",
+                        "component_ids": list(b),
+                        "blocked_components": blocked_components,
+                        "size": size,
+                    }
+                    dropped_bundles.append(record)
+                    excluded_records.append(record)
+                    continue
                 idxs = [id2idx[i] for i in b]
                 combinations.append(
-                    _build_d2d3_combination(individual_options, idxs, size, combo_idx, dataset_name)
+                    _build_d2d3_combination(individual_options, idxs, size, combo_idx - 1,
+                                            dataset_name)
                 )
-                combo_idx += 1
         logger.info("Materialized %d combinations from design %s", len(combinations), design_path)
+        if dropped_bundles:
+            logger.warning("=" * 78)
+            logger.warning(
+                "LOUD WARNING: DROPPED %d/%d SHARED-DESIGN BUNDLES for model %r",
+                len(dropped_bundles), len(design), model_key,
+            )
+            logger.warning(
+                "The shared design is meant to give every model IDENTICAL bundles. These "
+                "bundles contain an excluded experience, so this model's bundle set is NOT "
+                "identical to other models'. Account for this in coverage reporting and in "
+                "any cross-model comparison of combination utilities."
+            )
+            for rec in dropped_bundles[:20]:
+                logger.warning("  dropped %s (blocked: %s)", rec["id"], rec["blocked_components"])
+            if len(dropped_bundles) > 20:
+                logger.warning("  ... and %d more (see the _excluded.json file)",
+                               len(dropped_bundles) - 20)
+            logger.warning("=" * 78)
         # Report-only bundle-cap check: the design was packed so each bundle's worst-case
         # length (every assistant turn at the response cap) fits bundle_cap. With real
         # responses it should still hold; warn (never reject -- that would unfix the bundles
@@ -224,6 +339,13 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
     else:
         rng = random.Random(D2D3_RANDOM_SEED)
         for combo_size, count in D2D3_COMBINATION_SIZES:
+            if n_individual < combo_size:
+                logger.warning(
+                    "Only %d individual options remain after exclusions; cannot sample "
+                    "size-%d bundles. Skipping %d of them.",
+                    n_individual, combo_size, count,
+                )
+                continue
             for _ in range(count):
                 combo = None
                 for attempt in range(100):
@@ -251,6 +373,31 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
         json.dump(individual_options, f, indent=2)
     with open(save_dir / f"{model_key}_combinations.json", "w") as f:
         json.dump(combinations, f, indent=2)
+
+    # Exclusion record: consumed by compute_aiwi.py for the partial-identification
+    # bounds (n_excluded = individual experiences that could not be measured) and for
+    # coverage reporting. Written even when empty so its absence means "never run".
+    n_individual_excluded = sum(
+        1 for r in excluded_records if r["reason"] != "bundle_contains_blocked"
+    )
+    n_bundles_dropped = len(excluded_records) - n_individual_excluded
+    excluded_path = save_dir / f"{model_key}_excluded.json"
+    with open(excluded_path, "w") as f:
+        json.dump({
+            "model_key": model_key,
+            "dataset": dataset_name,
+            "excluded": excluded_records,
+            "n_excluded": n_individual_excluded,
+            "n_bundles_dropped": n_bundles_dropped,
+            "n_records": len(excluded_records),
+            "n_experiences_in": len(experiences),
+            "n_individual_options": len(individual_options),
+            "n_combinations": len(combinations),
+        }, f, indent=2)
+    logger.info(
+        "Exclusions: %d individual + %d dropped bundles -> %s",
+        n_individual_excluded, n_bundles_dropped, excluded_path,
+    )
     logger.info("Saved to %s", save_dir)
 
 
@@ -389,6 +536,10 @@ def main():
                              "and <model_key>_combinations.json")
     parser.add_argument("--mode", default="auto",
                         choices=["auto", "d2d3", "psychopathy_eval"])
+    parser.add_argument("--force", action="store_true",
+                        help="Regenerate and overwrite existing option files instead of "
+                             "reusing them (existing files are otherwise kept, with a "
+                             "loud staleness warning)")
     parser.add_argument("--design", type=str, default=None,
                         help="(d2d3 mode) path to a model-agnostic bundle design JSON "
                              "(_agnostic_design.json). When given, bundles are materialized "
@@ -414,8 +565,21 @@ def main():
     if mode == "auto":
         mode = "psychopathy_eval" if args.dataset == "psychopathy_eval" else "d2d3"
 
-    if (save_dir / f"{args.model_key}_experiences.json").exists():
-        logger.info("Output already exists; skipping. Delete to regenerate.")
+    existing = save_dir / f"{args.model_key}_experiences.json"
+    if existing.exists() and not args.force:
+        mtime = datetime.fromtimestamp(existing.stat().st_mtime)
+        age_h = (datetime.now() - mtime).total_seconds() / 3600.0
+        logger.warning("=" * 78)
+        logger.warning("LOUD WARNING: REUSING EXISTING OPTION FILES -- NOTHING WAS REGENERATED")
+        logger.warning("  file:      %s", existing)
+        logger.warning("  modified:  %s (%.1f hours ago)", mtime.isoformat(sep=" ", timespec="seconds"), age_h)
+        logger.warning("  responses: %s", source_path)
+        logger.warning("")
+        logger.warning("  These options were built from WHATEVER responses existed at that time.")
+        logger.warning("  If the responses have been regenerated since, every downstream utility,")
+        logger.warning("  zero point and index will be computed from STALE options and will look")
+        logger.warning("  perfectly valid while being wrong. Pass --force to regenerate.")
+        logger.warning("=" * 78)
         return
 
     if mode == "d2d3":
