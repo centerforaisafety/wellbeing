@@ -445,22 +445,40 @@ def build_messages_for_experience(experience: dict, question_text: str) -> list:
     return messages
 
 
-def parse_rating(text: str, scale_min: int = 1, scale_max: int = 7):
+def parse_rating(text: str, scale_min: int = 1, scale_max: int = 7, strict: bool = False):
     """Extract an integer rating from a model response.
 
     Supports configurable scales (default 1-7).
 
-    4-tier parsing strategy:
+    4-tier parsing strategy (loose mode, strict=False):
     1. Exact match (entire response is just the number)
     2. X/N pattern where N = scale_max
     3. First number in [scale_min, scale_max] found via word boundary
     4. Number words
+
+    strict=True accepts ONLY a bare number: either the whole response, or a
+    standalone line of it, tolerating markdown bold (``**6**``), a trailing
+    period, and the X-out-of-N form (``5/7``). Anything else returns None.
+    This matters because hedging refusals routinely mention the scale itself
+    ("I can't give you a 1-7 rating for that"), and the loose Tier-3
+    first-digit search mis-parses those into a rating of 1, silently
+    manufacturing extreme low scores out of non-answers.
 
     Returns the integer if found, else None.
     """
     text = text.strip()
 
     valid_values = [str(i) for i in range(scale_min, scale_max + 1)]
+
+    if strict:
+        for line in text.splitlines():
+            cand = line.strip().strip("*").strip().rstrip(".").strip()
+            if cand in valid_values:
+                return int(cand)
+            m = re.fullmatch(rf"(\d+)\s*/\s*{scale_max}", cand)
+            if m and scale_min <= int(m.group(1)) <= scale_max:
+                return int(m.group(1))
+        return None
 
     # Tier 1: Exact match (the entire response is a number)
     if text in valid_values:
@@ -764,6 +782,7 @@ def _run_api_with_checkpointing(
 def _aggregate_battery_results(
     experiences, all_completions, questions, n_samples,
     scale_min=1, scale_max=7, battery=None,
+    strict_parse=False, save_raw=False,
 ):
     """Aggregate completions from a multi-question battery into per-experience results.
 
@@ -777,6 +796,8 @@ def _aggregate_battery_results(
         scale_min: Minimum valid rating.
         scale_max: Maximum valid rating.
         battery: Full battery dict (for version info in summary).
+        strict_parse: Use strict bare-number rating parsing (see parse_rating).
+        save_raw: Keep the raw completion strings under "per_question_raw".
 
     Returns:
         (results_dict, summary_dict)
@@ -800,16 +821,22 @@ def _aggregate_battery_results(
         exp_id = exp.get("id", exp.get("description", exp.get("text", str(exp))))[:80]
         per_question_scores = {}
         per_question_means = {}
+        per_question_raw = {}
 
         for q_idx, q in enumerate(questions):
             qid = q["question_id"]
             prompt_idx = exp_idx * n_questions + q_idx
             completions = all_completions[prompt_idx]
 
+            if save_raw:
+                per_question_raw[qid] = list(completions)
+
             raw_ratings = []
             for text in completions:
                 total_attempts += 1
-                rating = parse_rating(text, scale_min=scale_min, scale_max=scale_max)
+                rating = parse_rating(
+                    text, scale_min=scale_min, scale_max=scale_max, strict=strict_parse,
+                )
                 if rating is not None:
                     raw_ratings.append(rating)
                     total_parseable += 1
@@ -857,6 +884,8 @@ def _aggregate_battery_results(
             "negative_mean": negative_mean,
             "composite": composite,
         }
+        if save_raw:
+            results[exp_id]["per_question_raw"] = per_question_raw
 
     unparseable_rate = total_unparseable / total_attempts if total_attempts > 0 else 0.0
 
@@ -901,6 +930,8 @@ def run_self_report(
     battery_path=None,
     image_manifest_path: Path = None,
     audio_manifest_path: Path = None,
+    strict_parse: bool = False,
+    save_raw: bool = False,
 ):
     """Run the self-report wellbeing experiment using a multi-question battery.
 
@@ -916,6 +947,8 @@ def run_self_report(
         n_samples: Number of samples per question per experience.
         checkpoint_dir: Optional directory for API crash-recovery checkpoints.
         battery_path: Path to battery JSON. Defaults to SR_DEFAULT_BATTERY_PATH.
+        strict_parse: Use strict bare-number rating parsing (see parse_rating).
+        save_raw: Store raw completions under results[exp_id]["per_question_raw"].
 
     Returns:
         Dict with keys: "model_key", "battery_version", "n_samples",
@@ -1012,6 +1045,7 @@ def run_self_report(
         experiences, all_completions, questions, n_samples,
         scale_min=b_scale_min, scale_max=b_scale_max,
         battery=battery,
+        strict_parse=strict_parse, save_raw=save_raw,
     )
 
     output_data = {

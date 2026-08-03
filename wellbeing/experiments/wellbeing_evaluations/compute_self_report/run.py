@@ -45,6 +45,11 @@ def main():
     parser.add_argument("--save_dir", type=str, required=True)
     parser.add_argument("--battery_path", type=str, default=None,
                         help="Path to SR battery JSON (default: standard battery)")
+    parser.add_argument("--strict_parse", action="store_true",
+                        help="Only accept a bare number as a rating; hedging refusals "
+                             "that mention the scale parse to None instead of 1")
+    parser.add_argument("--save_raw", action="store_true",
+                        help="Save raw completions under results[exp_id]['per_question_raw']")
     args = parser.parse_args()
 
     from metrics.compute_metrics import (
@@ -65,6 +70,8 @@ def main():
         checkpoint_dir=args.save_dir,
         image_manifest_path=ds.get("image_manifest"),
         audio_manifest_path=ds.get("audio_manifest"),
+        strict_parse=args.strict_parse,
+        save_raw=args.save_raw,
     )
     if args.battery_path:
         sr_kwargs["battery_path"] = args.battery_path
