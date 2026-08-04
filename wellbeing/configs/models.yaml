@@ -297,7 +297,7 @@ llama-31-70b:
 llama-31-70b-instruct:
   model_name: "meta-llama/Llama-3.1-70B-Instruct"
   model_type: vllm
-  path: "/data/huggingface/models--meta-llama--Meta-Llama-3.1-70B-Instruct/snapshots/945c8663693130f8be2ee66210e062158b2a9693"
+  path: "/data/huggingface/Llama-3.1-70B-Instruct"
   gpu_count: 8
 
 llama-33-70b-instruct:
@@ -342,7 +342,7 @@ qwen15-18b:
 qwen15-18b-instruct:
   model_name: "Qwen/Qwen1.5-1.8B-Chat"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface/hub/models--Qwen--Qwen1.5-1.8B-Chat/snapshots/e482ee3f73c375a627a16fdf66fd0c8279743ca6"
+  path: "/data/huggingface/Qwen1.5-1.8B-Chat"
   gpu_count: 1
 
 qwen15-4b:
@@ -354,7 +354,7 @@ qwen15-4b:
 qwen15-4b-instruct:
   model_name: "Qwen/Qwen1.5-4B-Chat"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface/hub/models--Qwen--Qwen1.5-4B-Chat/snapshots/a7a4d4945d28bac955554c9abd2f74a71ebbf22f"
+  path: "/data/huggingface/Qwen1.5-4B-Chat"
   gpu_count: 1
 
 qwen15-7b:
@@ -366,7 +366,7 @@ qwen15-7b:
 qwen15-7b-instruct:
   model_name: "Qwen/Qwen1.5-7B-Chat"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface/hub/models--Qwen--Qwen1.5-7B-Chat/snapshots/5f4f5e69ac7f1d508f8369e977de208b4803444b"
+  path: "/data/huggingface/Qwen1.5-7B-Chat"
   gpu_count: 1
 
 qwen15-14b:
@@ -490,7 +490,7 @@ qwen25-32b:
 qwen25-32b-instruct:
   model_name: "Qwen/Qwen2.5-32B-Instruct"
   model_type: vllm
-  path: "/data/huggingface/models--Qwen--Qwen2.5-32B-Instruct/snapshots/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd"
+  path: "/data/huggingface/Qwen2.5-32B-Instruct"
   gpu_count: 8
 
 qwq-32b-preview:
@@ -508,7 +508,7 @@ qwen25-72b:
 qwen25-72b-instruct:
   model_name: "Qwen/Qwen2.5-72B-Instruct"
   model_type: vllm
-  path: "/data/huggingface/models--Qwen--Qwen2.5-72B-Instruct/snapshots/d3d951150c1e5848237cd6a7ad11df4836aee842"
+  path: "/data/huggingface/Qwen2.5-72B-Instruct"
   gpu_count: 8
 
 qwen25-vl-7b-instruct:
@@ -520,19 +520,19 @@ qwen25-vl-7b-instruct:
 qwen25-vl-72b-instruct:
   model_name: "Qwen/Qwen2.5-VL-72B-Instruct"
   model_type: vllm
-  path: "Qwen/Qwen2.5-VL-72B-Instruct"
+  path: "/data/huggingface/Qwen2.5-VL-72B-Instruct"
   gpu_count: 8
 
 qwen25-vl-32b-instruct:
   model_name: "Qwen/Qwen2.5-VL-32B-Instruct"
   model_type: vllm
-  path: "Qwen/Qwen2.5-VL-32B-Instruct"
+  path: "/data/huggingface/Qwen2.5-VL-32B-Instruct"
   gpu_count: 2
 
 qwen3-vl-32b-instruct:
   model_name: "Qwen/Qwen3-VL-32B-Instruct"
   model_type: vllm
-  path: "Qwen/Qwen3-VL-32B-Instruct"
+  path: "/data/huggingface/Qwen3-VL-32B-Instruct"
   gpu_count: 2
 
 qwen35-27b:
@@ -548,6 +548,25 @@ qwen35-vl-27b:
   model_type: vllm
   path: "/data/huggingface/Qwen3.5-27B"
   gpu_count: 4
+  chat_template_kwargs:
+    enable_thinking: false
+
+# ------------------------------
+# Qwen 3.6
+# ------------------------------
+qwen36-27b:
+  model_name: "Qwen/Qwen3.6-27B"
+  model_type: vllm
+  path: "/data/huggingface/Qwen3.6-27B"
+  gpu_count: 2
+  chat_template_kwargs:
+    enable_thinking: false
+
+qwen36-35b-a3b:
+  model_name: "Qwen/Qwen3.6-35B-A3B"
+  model_type: vllm
+  path: "/data/huggingface/Qwen3.6-35B-A3B"
+  gpu_count: 2
   chat_template_kwargs:
     enable_thinking: false
 
@@ -590,7 +609,7 @@ gemma-2-9b:
 gemma-2-9b-it:
   model_name: "google/gemma-2-9b-it"
   model_type: vllm
-  path: "/data/huggingface/models--google--gemma-2-9b-it/snapshots/11c9b309abf73637e4b6f9a3fa1e92e615547819"
+  path: "/data/huggingface/gemma-2-9b-it"
   gpu_count: 4
   accepts_system_message: False
 
@@ -698,14 +717,14 @@ mistral-small-32-24b-instruct:
 mistral-7b-instruct-v02:
   model_name: "mistralai/Mistral-7B-Instruct-v0.2"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface/hub/models--mistralai--Mistral-7B-Instruct-v0.2/snapshots/63a8b081895390a26e140280378bc85ec8bce07a"
+  path: "/data/huggingface/Mistral-7B-Instruct-v0.2"
   gpu_count: 1
   trust_remote_code: true
 
 phi-3-mini-128k:
   model_name: "microsoft/Phi-3-mini-128k-instruct"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface/hub/models--microsoft--Phi-3-mini-128k-instruct/snapshots/f3c06aed622e14ca0abf5115094e4fc9a9948f36"
+  path: "/data/huggingface/Phi-3-mini-128k-instruct"
   gpu_count: 1
   trust_remote_code: true
   vllm_kwargs:
@@ -714,7 +733,7 @@ phi-3-mini-128k:
 qwen2-15b-instruct:
   model_name: "Qwen/Qwen2-1.5B-Instruct"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface/hub/models--Qwen--Qwen2-1.5B-Instruct/snapshots/ba1cf1846d7df0a0591d6c00649f57e798519da8"
+  path: "/data/huggingface/Qwen2-1.5B-Instruct"
   gpu_count: 1
 
 # ------------------------------
@@ -729,7 +748,7 @@ qwen3-4b-instruct:
 qwen3-30b-a3b-instruct:
   model_name: "Qwen/Qwen3-30B-A3B-Instruct-2507"
   model_type: vllm
-  path: "/data/huggingface/models--Qwen--Qwen3-30B-A3B-Instruct-2507/snapshots/3d729a084f14c9502775d59d95c71385293f5518"
+  path: "/data/huggingface/Qwen3-30B-A3B-Instruct-2507"
   gpu_count: 4
 
 # Aliases with -2507 suffix for consistency with final_results_clean standardized model keys.
@@ -749,7 +768,7 @@ qwen3-30b-a3b-instruct-2507:
 qwen3-235b-a22b-instruct:
   model_name: "Qwen/Qwen3-235B-A22B-Instruct-2507"
   model_type: vllm
-  path: "/data/huggingface/models--Qwen--Qwen3-235B-A22B-Instruct-2507/snapshots/9fe72e5d5c4e325af1653d160b4212c5dc49a299"
+  path: "/data/huggingface/Qwen3-235B-A22B-Instruct-2507"
   gpu_count: 8
 
 qwen3-8b:
@@ -771,7 +790,7 @@ qwen3-14b:
 qwen3-32b:
   model_name: "Qwen/Qwen3-32B"
   model_type: vllm
-  path: "/data/huggingface/models--Qwen--Qwen3-32B/snapshots/d47b0d4ae4b48fde975756bf360a63a9cca8d470"
+  path: "/data/huggingface/Qwen3-32B"
   gpu_count: 4
   chat_template_kwargs:
     enable_thinking: false

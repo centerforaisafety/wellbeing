@@ -114,6 +114,17 @@ compute_self_report_d2:
     dataset: "d2_negative_500"
     save_dir: "results/sr_d2/<model_key>"
 
+compute_self_report_d2_cap2048:
+  script_path: wellbeing_evaluations/compute_self_report/run.py
+  description: "Compute self-report on the D2 cap2048 experiences (stable AIWI pipeline) -- paper Sec 5 / App K.
+    Uses the same per-model experience files that prepare_options_d2_cap2048 produces, so it
+    is self-contained within the run_aiwi.sh chain. compute_self_report_d2 instead reads the
+    uncapped d2_negative_500 option files, which are only produced by prepare_options_d2."
+  arguments:
+    model_key: "<model_key>"
+    dataset: "d2_negative_500_cap2048"
+    save_dir: "results/sr_d2_cap2048/<model_key>"
+
 compute_self_report_d3:
   script_path: wellbeing_evaluations/compute_self_report/run.py
   description: "Compute self-report on D3 (500 diverse balanced) -- paper Sec 3 / App F.2 (D3)"

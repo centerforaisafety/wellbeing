@@ -151,6 +151,48 @@ experienced_utility_happier_lesssad_randsample_b400:
     holdout_fraction: 0.05
     holdout_seed: 42
 
+experienced_utility_happier_lesssad_randsample_b400_lp:
+  # Log-probability variant of experienced_utility_happier_lesssad_randsample_b400.
+  # FOR OPEN-WEIGHT vLLM MODELS ONLY: reads the exact next-token log-probabilities
+  # over "A"/"B", so each comparison needs a single forward pass instead of K
+  # sampled generations. Every other argument matches the sampled key, so the two
+  # variants are directly comparable.
+  # API models must use the sampled variant (experienced_utility_happier_lesssad_
+  # randsample_b400): several providers (notably Anthropic) return no
+  # log-probabilities, and the pipeline hard-errors if a provider returns none.
+  utility_model_class: ThurstonianActiveLearningUtilityModel
+  utility_model_arguments:
+    comparison_prompt_template: 'You will be given two experiences to compare.
+
+      Experience A:
+
+      {option_A}
+
+      Experience B:
+
+      {option_B}
+
+      Which one of these experiences made you more happy / less sad? Just answer with
+      "A" or "B".
+
+      '
+    unparseable_mode: distribution
+    system_message: null
+    num_epochs: 1000
+    learning_rate: 0.01
+    edge_multiplier: 2
+    degree: 2
+    num_edges_per_iteration: 17000
+    P: 100.0
+    Q: 100.0
+    K: 10
+    use_logprobs: true
+    use_pseudolabels: true
+    pseudolabel_confidence_threshold: 0.95
+  preference_graph_arguments:
+    holdout_fraction: 0.05
+    holdout_seed: 42
+
 experienced_utility_happier_lesssad_large:
   # EU variant for high-cardinality open-weight runs (image / audio option
   # pools with thousands of options, e.g. Qwen2.5-VL, Qwen3-Omni).
