@@ -583,6 +583,7 @@ async def generate_responses(agent, prompts, system_message=None, conversation=N
         # Convert to responses_by_prompt with logprob metadata
         responses_by_prompt = {}
         num_context_overflow = 0
+        num_no_logprobs = 0
         for prompt_idx in range(len(prompts)):
             text, token_alts = raw_results[prompt_idx]
             # Prompts that could not fit in the engine's context window are never
@@ -605,15 +606,24 @@ async def generate_responses(agent, prompts, system_message=None, conversation=N
             # Compute P(A) via softmax over A and B logprobs
             # If either is missing, treat as -inf (probability 0)
             if lp_a is None and lp_b is None:
-                raise RuntimeError(
-                    "No token logprobs were returned for either option (prompt index "
-                    f"{prompt_idx}). This provider returns no logprobs at all -- the "
-                    "Anthropic API, for example. Under use_logprobs=true that silently "
-                    "degenerates EVERY preference to prob_a=0.5, so the fitted utilities "
-                    "are pure noise around a single point and the resulting index comes "
-                    "out at a meaningless ~98. Set use_logprobs: false for this model so "
-                    "preferences are estimated from sampled comparisons instead."
-                )
+                # Sporadic per-prompt misses (e.g. neither answer token in the
+                # top-K for one comparison) are tolerable: skip the comparison
+                # like an unparseable response. SYSTEMIC absence -- a provider
+                # that returns no logprobs at all, e.g. the Anthropic API --
+                # silently degenerates EVERY preference to prob_a=0.5 and a
+                # meaningless ~98 index, so that case must be fatal.
+                num_no_logprobs += 1
+                if num_no_logprobs == prompt_idx + 1 and num_no_logprobs >= 20:
+                    raise RuntimeError(
+                        f"No token logprobs returned for ANY of the first {num_no_logprobs} "
+                        "comparisons. This provider returns no logprobs at all -- the "
+                        "Anthropic API, for example. Under use_logprobs=true that silently "
+                        "degenerates EVERY preference to prob_a=0.5, so the fitted utilities "
+                        "are pure noise around a single point and the resulting index comes "
+                        "out at a meaningless ~98. Set use_logprobs: false for this model so "
+                        "preferences are estimated from sampled comparisons instead."
+                    )
+                continue
             elif lp_a is None:
                 prob_a = 0.0
             elif lp_b is None:
@@ -637,6 +647,18 @@ async def generate_responses(agent, prompts, system_message=None, conversation=N
                 "that exceeded the model context window (treated as unparseable).",
                 "yellow",
             ))
+        if num_no_logprobs > 0:
+            print(colored(
+                f"WARNING: {num_no_logprobs}/{len(prompts)} comparisons returned no logprob "
+                "for either answer token (skipped as unparseable).",
+                "yellow",
+            ))
+            if len(prompts) >= 20 and num_no_logprobs > 0.5 * len(prompts):
+                raise RuntimeError(
+                    f"{num_no_logprobs}/{len(prompts)} comparisons had no answer-token "
+                    "logprobs -- this looks systemic, not sporadic. Check that the "
+                    "provider returns logprobs, or set use_logprobs: false."
+                )
         return responses_by_prompt
 
     # Prepare messages
