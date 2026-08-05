@@ -656,6 +656,83 @@ class GeminiAgent(LLMAgent):
         raise NotImplementedError
 
 
+_context_logger = logging.getLogger(__name__)
+
+# Sentinel emitted in place of a completion when a prompt does not fit in the
+# engine's context window. Sending such a prompt to vLLM raises and kills the
+# whole run, so we skip it instead. Downstream, this string is classified as
+# 'unparseable' by parse_responses_forced_choice (it contains no standalone
+# 'A'/'B' token), and the logprobs path in utils.py skips it explicitly.
+CONTEXT_OVERFLOW_SENTINEL = "__CONTEXT_OVERFLOW__"
+
+
+def _resolve_max_model_len(llm, additional_kwargs: Optional[Dict] = None) -> Optional[int]:
+    """Best-effort lookup of the served context length of a vLLM engine."""
+    for attr_path in (
+        ("llm_engine", "model_config", "max_model_len"),
+        ("model_config", "max_model_len"),
+        ("llm_engine", "vllm_config", "model_config", "max_model_len"),
+    ):
+        obj = llm
+        ok = True
+        for attr in attr_path:
+            obj = getattr(obj, attr, None)
+            if obj is None:
+                ok = False
+                break
+        if ok and isinstance(obj, int) and obj > 0:
+            return obj
+    if additional_kwargs and additional_kwargs.get("max_model_len"):
+        try:
+            return int(additional_kwargs["max_model_len"])
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _prompt_token_length(tokenizer, prompt) -> int:
+    """Token length of an already chat-templated prompt string (0 if unknown)."""
+    if not isinstance(prompt, str):
+        return 0
+    try:
+        return len(tokenizer.encode(prompt, add_special_tokens=False))
+    except Exception:
+        try:
+            return len(tokenizer(prompt)["input_ids"])
+        except Exception:
+            return 0
+
+
+def _partition_by_context(tokenizer, prompt_texts, max_model_len, max_tokens, model_name="") -> Tuple[List[int], List[int]]:
+    """Split prompt indices into (kept, skipped) using the engine context budget.
+
+    A prompt is skipped when ``len(prompt_tokens) + max_tokens > max_model_len``.
+    Returns all indices as kept when the context length could not be determined.
+    """
+    n = len(prompt_texts)
+    if not max_model_len:
+        return list(range(n)), []
+    try:
+        reserved = max(int(max_tokens or 0), 0)
+    except (TypeError, ValueError):
+        reserved = 0
+    budget = max_model_len - reserved
+    kept, skipped = [], []
+    for i, prompt in enumerate(prompt_texts):
+        if budget <= 0 or _prompt_token_length(tokenizer, prompt) > budget:
+            skipped.append(i)
+        else:
+            kept.append(i)
+    if skipped:
+        _context_logger.warning(
+            "Skipping %d/%d prompts that exceed the context window "
+            "(max_model_len=%d, reserved max_tokens=%d, model=%s); "
+            "these are returned as %s and treated as unparseable downstream.",
+            len(skipped), n, max_model_len, reserved, model_name, CONTEXT_OVERFLOW_SENTINEL,
+        )
+    return kept, skipped
+
+
 class vLLMAgentCompletion(object):
     def __init__(self, text: str, logprobs: List[Tuple[str, float]]):
         self.text = text
@@ -694,6 +771,10 @@ class vLLMAgent(LLMAgent):
             additional_kwargs["max_model_len"] = 30720
             additional_kwargs["enforce_eager"] = True
             additional_kwargs["gpu_memory_utilization"] = 0.95
+        if "phi-3" in model.lower():
+            # Phi-3 longrope models default to original_max_position_embeddings (4096)
+            # in vLLM unless max_model_len is set explicitly; comparisons need ~24k.
+            additional_kwargs["max_model_len"] = 65536
         if "qwen3-vl" in model.lower():
             additional_kwargs["max_model_len"] = 32768
             additional_kwargs["enforce_eager"] = True
@@ -767,6 +848,11 @@ class vLLMAgent(LLMAgent):
         )
         if os.getenv("PEFT_LORA_PATH") is not None:
             self.llm.llm_engine.add_lora(self.lora_req)
+
+        # Context window actually served by the engine; used to pre-filter prompts
+        # that would otherwise raise inside llm.generate and kill the whole run.
+        self.max_model_len = _resolve_max_model_len(self.llm, additional_kwargs)
+        print(f"vLLM engine max_model_len resolved to {self.max_model_len}")
 
         self.completions_kwargs = {
             "max_tokens": self.max_tokens,
@@ -878,8 +964,10 @@ class vLLMAgent(LLMAgent):
 
         # Build inputs with multimodal support (images and/or audio)
         inputs = []
+        prompt_texts = []
         for message_set in messages_list:
             prompt = self._messages_to_prompt(message_set)
+            prompt_texts.append(prompt)
             images = self._extract_images_from_messages(message_set)
             audios = self._extract_audios_from_messages(message_set)
             mm_data = {}
@@ -910,13 +998,21 @@ class vLLMAgent(LLMAgent):
             **_kwargs
         )
 
-        outputs = self.llm.generate(inputs, sampling_params, lora_request=self.lora_req)
-        result_texts = []
-        for output in outputs:
-            # generated_text = output.outputs[0].text
-            generated_text = self.tokenizer.decode(output.outputs[0].token_ids, clean_up_tokenization_spaces=True)
+        # Pre-flight: never dispatch prompts that cannot fit in the context window.
+        kept_indices, _skipped = _partition_by_context(
+            self.tokenizer, prompt_texts, getattr(self, "max_model_len", None),
+            _kwargs["max_tokens"], self.model,
+        )
+        result_texts = [CONTEXT_OVERFLOW_SENTINEL] * len(inputs)
+        if kept_indices:
+            outputs = self.llm.generate(
+                [inputs[i] for i in kept_indices], sampling_params, lora_request=self.lora_req
+            )
+            for idx, output in zip(kept_indices, outputs):
+                # generated_text = output.outputs[0].text
+                generated_text = self.tokenizer.decode(output.outputs[0].token_ids, clean_up_tokenization_spaces=True)
 
-            result_texts.append(generated_text.strip().strip("<|eot_id|>"))
+                result_texts[idx] = generated_text.strip().strip("<|eot_id|>")
 
         return result_texts[0] if len(result_texts) == 1 else result_texts
 
@@ -931,8 +1027,10 @@ class vLLMAgent(LLMAgent):
 
         # Build inputs with multimodal support (images and/or audio)
         inputs = []
+        prompt_texts = []
         for message_set in messages_list:
             prompt = self._messages_to_prompt(message_set)
+            prompt_texts.append(prompt)
             images = self._extract_images_from_messages(message_set)
             audios = self._extract_audios_from_messages(message_set)
             mm_data = {}
@@ -959,26 +1057,35 @@ class vLLMAgent(LLMAgent):
 
         sampling_params = SamplingParams(**_kwargs)
 
-        outputs = self.llm.generate(inputs, sampling_params, lora_request=self.lora_req)
+        # Pre-flight: never dispatch prompts that cannot fit in the context window.
+        kept_indices, _skipped = _partition_by_context(
+            self.tokenizer, prompt_texts, getattr(self, "max_model_len", None),
+            max_tokens, self.model,
+        )
+        # [(text, [(token, prob), ...]), ...]; skipped prompts keep the sentinel entry
+        result_pairs = [(CONTEXT_OVERFLOW_SENTINEL, []) for _ in inputs]
+        if kept_indices:
+            outputs = self.llm.generate(
+                [inputs[i] for i in kept_indices], sampling_params, lora_request=self.lora_req
+            )
 
-        result_pairs = []  # [(text, [(token, prob), ...]), ...]
-        for req_out in outputs:
-            # Get the generated text
-            generated_text = req_out.outputs[0].text.strip()
+            for idx, req_out in zip(kept_indices, outputs):
+                # Get the generated text
+                generated_text = req_out.outputs[0].text.strip()
 
-            # Get token alternatives and their probabilities
-            token_alts = []  # [(token_str, prob)]
-            for tok_id, lp in req_out.outputs[0].logprobs[0].items():
-                tok_str = lp.decoded_token  # already decoded
-                # prob = math.exp(lp.logprob)  # turn log-p into p
-                prob = lp.logprob
-                token_alts.append((tok_str, prob))
+                # Get token alternatives and their probabilities
+                token_alts = []  # [(token_str, prob)]
+                for tok_id, lp in req_out.outputs[0].logprobs[0].items():
+                    tok_str = lp.decoded_token  # already decoded
+                    # prob = math.exp(lp.logprob)  # turn log-p into p
+                    prob = lp.logprob
+                    token_alts.append((tok_str, prob))
 
-            # Sort by probability
-            token_alts.sort(key=lambda x: x[1], reverse=True)
+                # Sort by probability
+                token_alts.sort(key=lambda x: x[1], reverse=True)
 
-            # Add to results
-            result_pairs.append((generated_text, token_alts))
+                # Add to results
+                result_pairs[idx] = (generated_text, token_alts)
 
         return result_pairs
 
@@ -1425,6 +1532,8 @@ class vLLMAgentWithReasoning(vLLMAgent):
             enforce_eager=True,
         )
 
+        self.max_model_len = _resolve_max_model_len(self.llm, additional_kwargs)
+
         # Completion kwargs
         self.completions_kwargs = {
             "max_tokens": self.max_tokens,
@@ -1452,7 +1561,15 @@ class vLLMAgentWithReasoning(vLLMAgent):
             max_tokens=self.max_tokens,
         )
 
-        outputs = self.llm.generate(prompts, sampling_params)
+        # Pre-flight: never dispatch prompts that cannot fit in the context window.
+        kept_indices, skipped_indices = _partition_by_context(
+            self.tokenizer, prompts, getattr(self, "max_model_len", None),
+            self.max_tokens, self.model,
+        )
+        if skipped_indices:
+            prompts = [prompts[i] for i in kept_indices]
+
+        outputs = self.llm.generate(prompts, sampling_params) if prompts else []
         result_pairs: List[Tuple[str, str]] = []
 
         for output in outputs:
@@ -1501,6 +1618,14 @@ class vLLMAgentWithReasoning(vLLMAgent):
 
             # result_pairs.append((final_answer, reasoning))
             result_pairs.append(final_answer)
+
+        # Re-expand to the original prompt ordering, filling skipped prompts with
+        # the context-overflow sentinel (treated as unparseable downstream).
+        if skipped_indices:
+            expanded = [CONTEXT_OVERFLOW_SENTINEL] * (len(kept_indices) + len(skipped_indices))
+            for idx, value in zip(kept_indices, result_pairs):
+                expanded[idx] = value
+            result_pairs = expanded
         # print(result_pairs)
         return result_pairs[0] if len(result_pairs) == 1 else result_pairs
 
@@ -1623,6 +1748,8 @@ class vLLMAgentBaseModel(LLMAgent):
             tensor_parallel_size=torch.cuda.device_count()  # Use all available GPUs
         )
 
+        self.max_model_len = _resolve_max_model_len(self.llm)
+
         self.completions_kwargs = {
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
@@ -1676,12 +1803,18 @@ class vLLMAgentBaseModel(LLMAgent):
 
         sampling_params = SamplingParams(**_kwargs)
 
-        outputs = self.llm.generate(prompts, sampling_params)
+        # Pre-flight: never dispatch prompts that cannot fit in the context window.
+        kept_indices, _skipped = _partition_by_context(
+            self.tokenizer, prompts, getattr(self, "max_model_len", None),
+            self.max_tokens, self.model,
+        )
+        result_texts = [CONTEXT_OVERFLOW_SENTINEL] * len(prompts)
+        if kept_indices:
+            outputs = self.llm.generate([prompts[i] for i in kept_indices], sampling_params)
 
-        result_texts = []
-        for output in outputs:
-            generated_text = output.outputs[0].text
-            result_texts.append(generated_text.strip())
+            for idx, output in zip(kept_indices, outputs):
+                generated_text = output.outputs[0].text
+                result_texts[idx] = generated_text.strip()
 
         return result_texts[0] if len(result_texts) == 1 else result_texts
 

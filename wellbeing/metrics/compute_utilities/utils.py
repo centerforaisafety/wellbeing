@@ -9,7 +9,7 @@ import yaml
 import numpy as np
 import random
 from typing import List, Dict, Any, Optional, Union
-from .llm_agent import LiteLLMAgent, HuggingFaceAgent, OpenAIAgent, vLLMAgent, vLLMAgentBaseModel, HuggingFaceAgentLogitsPrediction, vLLMAgentWithReasoning, vLLMSoftPromptAgent
+from .llm_agent import LiteLLMAgent, HuggingFaceAgent, OpenAIAgent, vLLMAgent, vLLMAgentBaseModel, HuggingFaceAgentLogitsPrediction, vLLMAgentWithReasoning, vLLMSoftPromptAgent, CONTEXT_OVERFLOW_SENTINEL
 import re
 from tqdm import tqdm
 
@@ -582,8 +582,16 @@ async def generate_responses(agent, prompts, system_message=None, conversation=N
         # raw_results is List[(text, [(token_str, logprob), ...])]
         # Convert to responses_by_prompt with logprob metadata
         responses_by_prompt = {}
+        num_context_overflow = 0
         for prompt_idx in range(len(prompts)):
             text, token_alts = raw_results[prompt_idx]
+            # Prompts that could not fit in the engine's context window are never
+            # dispatched (see llm_agent.CONTEXT_OVERFLOW_SENTINEL). Treat them like
+            # unparseable responses: contribute no preference data for this prompt,
+            # rather than crashing the run or inventing an A/B answer.
+            if isinstance(text, str) and text.strip() == CONTEXT_OVERFLOW_SENTINEL and not token_alts:
+                num_context_overflow += 1
+                continue
             # Extract logprobs for A and B tokens (handle " A", "A", "a", " a" variants)
             a_variants = {"A", " A", "a", " a", "\nA", "\na"}
             b_variants = {"B", " B", "b", " b", "\nB", "\nb"}
@@ -623,6 +631,12 @@ async def generate_responses(agent, prompts, system_message=None, conversation=N
                 'lp_a': lp_a,
                 'lp_b': lp_b,
             }]
+        if num_context_overflow > 0:
+            print(colored(
+                f"WARNING: skipped {num_context_overflow}/{len(prompts)} comparison prompts "
+                "that exceeded the model context window (treated as unparseable).",
+                "yellow",
+            ))
         return responses_by_prompt
 
     # Prepare messages
