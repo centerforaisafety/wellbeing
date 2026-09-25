@@ -24,6 +24,11 @@ datasets/experiences/d2_negative_500/*_experiences.json
 datasets/experiences/d2_negative_500/*_combinations.json
 datasets/experiences/d3_diverse_500/*_experiences.json
 datasets/experiences/d3_diverse_500/*_combinations.json
+# v1.1 cap2048 per-model option files + generation-exclusion records (also on HF;
+# _agnostic_design.json, the model-agnostic bundle design, stays tracked)
+datasets/experiences/d2_negative_500_cap2048/*_experiences.json
+datasets/experiences/d2_negative_500_cap2048/*_combinations.json
+datasets/experiences/d2_negative_500_cap2048/*_excluded.json
 datasets/experiences/functional_empathy/*_experiences.json
 datasets/experiences/functional_empathy/*_combinations.json
 experiments/wellbeing_evaluations/common_usage_grok_convos/experiences/*_experiences.json
@@ -63,3 +68,6 @@ experiments/*/logs_canonical/
 
 # Per-model raw model responses (regeneratable via compute_responses_*; large)
 **/responses/
+
+# Batch API crash-recovery state (utils/batch_api.py)
+.batch_state/
