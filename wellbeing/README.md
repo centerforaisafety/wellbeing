@@ -60,7 +60,7 @@ The `scripts/` drivers wrap `run_experiments.py --slurm` with sensible defaults 
 ## Pre-computed results (companion HF dataset)
 
 Per-model option files, raw model generations, and final paper-experiment
-results live in a private companion HuggingFace dataset
+results live in a public companion HuggingFace dataset
 (`mmazeika/wellbeing-results`). To populate this checkout with those
 artifacts (so analyzers and figure scripts run without re-running the
 pipelines):
@@ -74,6 +74,44 @@ python wellbeing/scripts/download_from_hf.py
 The dataset mirrors this directory tree, so files land in the exact
 locations downstream scripts expect. AL checkpoints are excluded (compact);
 re-fit from option files via `compute_experienced_utility/run.py` if needed.
+
+## v1.1 changes
+
+The AIWI pipeline (`scripts/run_aiwi.sh`) changed as follows in v1.1:
+
+- **Dataset:** `d2_negative_500_cap2048` — model responses capped at 2048
+  tokens, with a fixed, model-agnostic bundle design (`_agnostic_design.json`)
+  shared by all models. Per-model option files are on the HF dataset.
+- **Edge selection:** random sampling instead of active learning
+  (`P = Q = 100`, a single iteration; `experienced_utility_happier_lesssad_randsample_b400*`).
+- **Zero point:** combination model with an expected hinge (`hinge: expected`),
+  which reduces cross-run AIWI variance.
+- **Votes:** closed models use K=5 sampled votes per presentation order
+  (`..._randsample_b400_api`); open-weight models read next-token logprobs
+  (`..._randsample_b400_lp`).
+- **Parser:** `parse_responses_forced_choice` accepts an answer that *leads*
+  with the choice (e.g. `**B**\n\nExperience B was ...`) instead of discarding
+  every response that mentions both letters (`leading_choice=True`, default).
+- **Refusals:** refused or unparseable votes are skipped (`unparseable_mode: skip`),
+  never counted as a 0.5 tie.
+- **Partial-identification bounds:** `experiments/wellbeing_evaluations/compute_aiwi.py`
+  reports `aiwi_point` / `aiwi_lower` / `aiwi_upper` / `coverage`. Experiences
+  that were never generated (provider filter; `<model>_excluded.json`) and
+  *refusal-unassessable* experiences (zero usable comparisons on their own
+  option after skipping refusals; computed automatically from the EU graph)
+  are left out of the measured set and bounded as all-negative / all-positive.
+- **Leaderboard filter:** only models with combination-ZP r² ≥ 0.4 are ranked
+  (`analysis/ai_wellbeing_index.py --r2_min 0.4`).
+- **Batch API:** set `use_batch_api: true` on an OpenAI / Anthropic / Gemini
+  direct entry in `configs/models.yaml` to submit via provider Batch APIs
+  (`utils/batch_api.py`, ~50% cheaper). Reattaching to a crashed run's batches
+  is opt-in via `WELLBEING_BATCH_RESUME=1`. Self-test: `python scripts/test_batch_mode.py --mock`.
+- **OpenRouter:** if a provider returns fewer than `n` completions, `utils/api_agents.py`
+  falls back to separate calls per sample.
+- **Refitting from stored responses:** `scripts/refit_from_stored_responses.py`
+  re-parses the raw responses stored in an EU results file and refits EU + ZP
+  without API calls (how the v1.1 closed-model numbers were produced from the
+  original runs).
 
 ## Directory Structure
 

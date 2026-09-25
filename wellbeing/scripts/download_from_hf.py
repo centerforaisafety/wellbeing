@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Download per-model option files, generations, and results from the
-companion private HF dataset (mmazeika/wellbeing-results) into this repo.
+companion public HF dataset (mmazeika/wellbeing-results) into this repo.
 
 The dataset mirrors the wellbeing/ directory tree, so files land exactly
 where the framework's scripts expect them. After this finishes you can run
