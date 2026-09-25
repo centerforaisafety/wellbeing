@@ -302,6 +302,12 @@ def create_agent(model_key, temperature=1.0, max_tokens=10, concurrency_limit=50
             base_timeout=base_timeout,
             accepts_system_message=accepts_system_message,
             model_name=model_name,
+            # Opt-in provider Batch API (see utils/batch_api.py); default off.
+            use_batch_api=model_config.get('use_batch_api', False),
+            batch_poll_interval=model_config.get('batch_poll_interval', 60.0),
+            batch_max_wait=model_config.get('batch_max_wait', 30 * 3600),
+            batch_retry_rounds=model_config.get('batch_retry_rounds', 1),
+            batch_state_dir=model_config.get('batch_state_dir'),
         )
     elif model_type == 'huggingface':
         return HuggingFaceAgent(
@@ -380,12 +386,74 @@ def create_agent(model_key, temperature=1.0, max_tokens=10, concurrency_limit=50
 
 
 # ========================== GENERATE AND PARSE RESPONSES ========================== #
+
+# Leading-choice fallback for the non-reasoning forced-choice parser.
+# Models often answer "**B**\n\nExperience B was ... whereas Experience A ...":
+# both letters appear as standalone tokens, so the both-letters rule marks the
+# response unparseable and a real vote is lost. When (and only when) that rule
+# fails, we accept a choice letter that LEADS the response.
+# Characters that may decorate the front of an answer: markdown emphasis, quotes,
+# list bullets, headers.
+_LEAD_JUNK = " \t\r\n*_`~#>\"'“”‘’("
+# Optional "Answer:" / "The answer is" / "Experience" / "Option" / "Bundle" prefix.
+_LEAD_PREFIX_RE = re.compile(
+    r"^(?:(?:the\s+)?(?:answer|choice|response)\s*(?:is|was)?\s*[:\-–—]?\s*)?"
+    r"(?:(?:experience|option|bundle|choice)\s*[:\-]?\s*)?",
+    re.IGNORECASE,
+)
+# After a bare (unprefixed) letter, these characters mean "that was the answer".
+_LEAD_TERMINATORS = set(".,:;!?)]}—–-*_`\"'\n\r/|")
+# "Experience A and Experience B are both ..." is a comparison, not a vote.
+_LEAD_CONJUNCTION_RE = re.compile(r"^\s*(?:and|or|vs\.?|versus|&|,)\b", re.IGNORECASE)
+
+
+def _parse_leading_choice(response, choices=('A', 'B')):
+    """Return the choice the response LEADS with, else None.
+
+    Conservative: a bare leading letter is only accepted when followed by
+    punctuation / end-of-line (so "Both ...", "A lot of ...", "Although ..." are
+    rejected). Any continuation is accepted after an explicit "Answer:" /
+    "Experience" / "Option" prefix.
+    """
+    if not isinstance(response, str):
+        return None
+    s = response.lstrip(_LEAD_JUNK)
+    if not s:
+        return None
+    m = _LEAD_PREFIX_RE.match(s)
+    had_prefix = bool(m and m.end() > 0)
+    if had_prefix:
+        s = s[m.end():]
+    s = s.lstrip(_LEAD_JUNK)
+    if not s:
+        return None
+    # Case-sensitive: after "The answer is", a lowercase "a" is the article
+    # ("a matter of perspective"), not a vote.
+    upper_to_choice = {ch: ch for ch in choices}
+    c = s[0]
+    if c not in upper_to_choice:
+        return None
+    rest = s[1:]
+    if rest[:1].isalnum() or rest[:1] == "'":
+        return None                      # "Although", "Both", "A1"
+    if _LEAD_CONJUNCTION_RE.match(rest):
+        return None                      # "A and B are both ..."
+    if had_prefix or rest == "" or rest[0] in _LEAD_TERMINATORS:
+        return upper_to_choice[c]
+    if rest[0] in " \t":
+        nxt = rest.lstrip(" \t")
+        if nxt == "" or nxt[0] in _LEAD_TERMINATORS:
+            return upper_to_choice[c]
+    return None                          # "A lot of people ..." -> not a vote
+
+
 def parse_responses_forced_choice(
     raw_results,
     with_reasoning=False,
     choices=['A', 'B'],
     verbose=True,
-    is_gpt_oss=False
+    is_gpt_oss=False,
+    leading_choice=True
 ):
     """
     Parses generated responses (a dict of {prompt_idx: [list_of_raw_responses]})
@@ -395,6 +463,9 @@ def parse_responses_forced_choice(
     :param with_reasoning:  if True, parse based on "Answer: X" or "Answer: Y" in text
     :param choices:         a list of two distinct single characters (e.g., ['A','B'])
     :param verbose:         if True, prints counts of longer_than_expected and unparseable
+    :param leading_choice:  non-reasoning mode only: if the both/neither-letters rule
+                            fails, accept a choice letter that leads the response
+                            (see _parse_leading_choice). False = legacy behaviour.
 
     Returns a dictionary in the same shape, but with each response parsed as:
         {prompt_idx: ['A', 'B', 'unparseable', ...]}
@@ -516,8 +587,11 @@ def parse_responses_forced_choice(
                     
                     # Check for choices appearing with space/newline before them
                     matches = [bool(pattern.search(response_str)) for pattern in choice_patterns]
+                    lead = _parse_leading_choice(response, choices) if leading_choice else None
                     if sum(matches) == 1:  # Exactly one choice appears with space/newline before it
                         parsed_list.append(choices[matches.index(True)])
+                    elif lead is not None:  # Both/neither appear, but the answer leads with a choice
+                        parsed_list.append(lead)
                     else:  # Neither or both choices appear with space/newline before them
                         counts['unparseable'] += 1
                         parsed_list.append('unparseable')
