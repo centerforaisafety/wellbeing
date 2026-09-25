@@ -34,7 +34,7 @@ except Exception as e:
 from dotenv import load_dotenv
 
 # Load API keys from the project's api_keys/ directory and optional .env files.
-# Priority (later overrides earlier): project api_keys/*.txt -> ~/.env -> env vars
+# Priority (highest first): env vars already set -> project api_keys/*.txt -> ~/.env
 _API_KEYS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api_keys")
 _KEY_FILE_MAP = {
     "OPENAI_API_KEY": "api_key_openai.txt",
@@ -51,11 +51,12 @@ for env_var, filename in _KEY_FILE_MAP.items():
         if key:
             os.environ[env_var] = key
 
-# Also load from .env files if they exist (these override the txt files)
+# Also load from .env files, but only to fill gaps: an explicit env var or a
+# project api_keys/*.txt file always wins (matches the documented priority above).
 for env_path in ["~/.env", "~/keys/.env"]:
     expanded = os.path.expanduser(env_path)
     if os.path.exists(expanded):
-        load_dotenv(expanded, override=True)
+        load_dotenv(expanded, override=False)
 
 TIMEOUT = 3600
 
@@ -383,6 +384,11 @@ class DirectAPIAgent:
         base_timeout: float = 120.0,
         accepts_system_message: bool = True,
         model_name: str = None,
+        use_batch_api: bool = False,
+        batch_poll_interval: float = 60.0,
+        batch_max_wait: float = 30 * 3600,
+        batch_retry_rounds: int = 1,
+        batch_state_dir: str = None,
     ):
         self.agent = agent
         self.concurrency_limit = concurrency_limit
@@ -393,8 +399,51 @@ class DirectAPIAgent:
         self.model = model_name or agent.model
         self._call_count = 0
         self._call_count_lock = asyncio.Lock()
+        # Opt-in provider Batch API (50% discount). Off by default: when off,
+        # every call takes the live path below, unchanged.
+        self.use_batch_api = use_batch_api
+        self.batch_poll_interval = batch_poll_interval
+        self.batch_max_wait = batch_max_wait
+        self.batch_retry_rounds = batch_retry_rounds
+        # Where in-flight batch ids are persisted so a killed run can reattach
+        # instead of paying for the same batch twice. None -> module default.
+        self.batch_state_dir = batch_state_dir
 
     async def async_completions(
+        self,
+        messages: List[List[Dict]],
+        verbose: bool = True,
+        timeout: float = None,
+        **kwargs,
+    ) -> List[str]:
+        """
+        Process a list of conversations, either live (default) or as a single
+        provider batch job when use_batch_api is set. Same signature and same
+        return shape in both modes.
+        """
+        if self.use_batch_api:
+            from utils.batch_api import DEFAULT_STATE_DIR, run_batch_completions
+
+            async def _live_fallback(remaining_messages):
+                return await self._async_completions_live(
+                    remaining_messages, verbose=verbose, timeout=timeout, **kwargs
+                )
+
+            return await run_batch_completions(
+                self.agent,
+                messages,
+                verbose=verbose,
+                poll_interval=self.batch_poll_interval,
+                max_wait=self.batch_max_wait,
+                retry_rounds=self.batch_retry_rounds,
+                live_fallback=_live_fallback,
+                state_dir=self.batch_state_dir or DEFAULT_STATE_DIR,
+            )
+        return await self._async_completions_live(
+            messages, verbose=verbose, timeout=timeout, **kwargs
+        )
+
+    async def _async_completions_live(
         self,
         messages: List[List[Dict]],
         verbose: bool = True,
@@ -482,8 +531,12 @@ class DirectAPIAgent:
 
     @property
     def supports_n_parameter(self) -> bool:
-        """Check if the underlying agent supports the n parameter (OpenAI-compatible APIs)."""
-        return isinstance(self.agent, OpenAIAgent)
+        """Check if the underlying agent supports the n parameter (OpenAI-compatible APIs).
+
+        Disabled in batch mode: each of the K samples is submitted as its own
+        batch entry with its own custom_id rather than via n=K.
+        """
+        return isinstance(self.agent, OpenAIAgent) and not self.use_batch_api
 
     async def async_completions_n(
         self,
@@ -519,6 +572,23 @@ class DirectAPIAgent:
             for i in range(num_prompts):
                 result.append(flat_responses[i::num_prompts])
             return result
+
+        # Some OpenAI-compatible providers (notably OpenRouter) accept `n` but
+        # silently return a single choice. Left unchecked that turns K samples
+        # into 1 with no error and no warning, so probe once before committing.
+        try:
+            probe_contents, _ = await self.agent._async_completions_n(messages[0], n=n)
+        except Exception:
+            probe_contents = None
+        if probe_contents is not None and len(probe_contents) < n:
+            print(f"[n-param] provider returned {len(probe_contents)} of {n} requested "
+                  f"completions; falling back to {n} separate calls per prompt.")
+            messages_dup = messages * n
+            flat_responses = await self.async_completions(
+                messages_dup, verbose=verbose, timeout=timeout, **kwargs
+            )
+            num_prompts = len(messages)
+            return [flat_responses[i::num_prompts] for i in range(num_prompts)]
 
         from tqdm.asyncio import tqdm_asyncio
 
@@ -580,6 +650,15 @@ class DirectAPIAgent:
                 f"(input: {usage.input_tokens:,} tokens, "
                 f"output: {usage.output_tokens:,} tokens, "
                 f"cached: {usage.cached_tokens:,} tokens)"
+            )
+
+        short = [i for i, v in results.items() if v is None or len(v) != n]
+        if short:
+            raise RuntimeError(
+                f"async_completions_n: {len(short)} of {len(messages)} prompts returned "
+                f"!= {n} completions (e.g. index {short[0]}: "
+                f"{0 if results[short[0]] is None else len(results[short[0]])}). "
+                "Refusing to return fewer samples than requested."
             )
 
         return [results[i] for i in range(len(messages))]

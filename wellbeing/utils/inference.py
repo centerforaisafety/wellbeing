@@ -159,6 +159,8 @@ def setup_api_client(
         "model_name": model_name,
         "model_type": model_type,
         "max_tokens": config.get("max_tokens"),
+        # Generation-only ceiling; see generate_api_direct for why it is separate.
+        "generation_max_tokens": config.get("generation_max_tokens"),
         "timeout": config.get("timeout", 30),
         # Models that reject the temperature parameter (HTTP 400 if sent).
         "no_temperature": config.get("no_temperature", False),
@@ -311,7 +313,16 @@ async def generate_api(
         api_config = model_key_or_config
 
     model_name = api_config["model_name"]
-    api_max_tokens = max(max_tokens, api_config.get("max_tokens") or 0)
+    # `generation_max_tokens` is a generation-only ceiling. Reasoning models bill
+    # hidden reasoning tokens against the same budget as visible content, so a
+    # limit that is fine for one-token A/B comparisons can leave a long-form
+    # answer with zero content (finish_reason="length", empty string). Raising
+    # `max_tokens` instead would also raise the comparison budget, so keep them
+    # separate. A ceiling is free unless it is actually used.
+    api_max_tokens = max(
+        max_tokens,
+        api_config.get("generation_max_tokens") or api_config.get("max_tokens") or 0,
+    )
     api_timeout = api_config.get("timeout", 30)
 
     # Some models reject the temperature parameter outright (HTTP 400). Models
@@ -444,7 +455,11 @@ async def generate_api_direct(
         temperature = None
     if temperature is not None:
         generation_config["temperature"] = temperature
-    generation_config["max_tokens"] = max_tokens
+    # Honour the generation-only ceiling here as well as in generate_api(); the
+    # agent path is what *_direct model types actually use.
+    generation_config["max_tokens"] = max(
+        max_tokens, config.get("generation_max_tokens") or 0
+    )
     if "reasoning_effort" in config:
         generation_config["reasoning_effort"] = config["reasoning_effort"]
 
@@ -472,6 +487,12 @@ async def generate_api_direct(
         base_timeout=base_timeout,
         accepts_system_message=True,
         model_name=model_name,
+        # Opt-in provider Batch API (see utils/batch_api.py); default off.
+        use_batch_api=config.get("use_batch_api", False),
+        batch_poll_interval=config.get("batch_poll_interval", 60.0),
+        batch_max_wait=config.get("batch_max_wait", 30 * 3600),
+        batch_retry_rounds=config.get("batch_retry_rounds", 1),
+        batch_state_dir=config.get("batch_state_dir"),
     )
 
     # For n > 1 samples, repeat each message n times and re-group

@@ -696,7 +696,7 @@ def _run_api_with_checkpointing(
     Returns list[list[str]] — completions per prompt (outer=prompt, inner=samples).
     """
     from utils.inference import generate_api, generate_api_direct, DIRECT_API_MODEL_TYPES
-    from utils.model_utils import get_model_type
+    from utils.model_utils import get_model_config, get_model_type
 
     model_type = get_model_type(model_key)
     if model_type in DIRECT_API_MODEL_TYPES:
@@ -705,6 +705,11 @@ def _run_api_with_checkpointing(
         _generate_fn = generate_api
 
     CHECKPOINT_BATCH_SIZE = 100
+    # With the provider Batch API each call becomes one (multi-hour) batch job,
+    # so chunking into 100-prompt calls would serialize hundreds of them. Submit
+    # the whole wave at once instead; checkpointing still happens per call.
+    if get_model_config(model_key, models_config_path=models_config_path).get("use_batch_api"):
+        CHECKPOINT_BATCH_SIZE = 100_000
 
     partial_path = None
     if checkpoint_dir is not None:

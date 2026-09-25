@@ -1,3 +1,24 @@
+# Optional per-model batch settings (direct API model types only):
+#   use_batch_api: true      # submit each wave of prompts as one provider Batch
+#                            # API job (~50% cheaper, results in up to 24h).
+#                            # Supported for model_type openai_direct,
+#                            # anthropic_direct, and gemini_direct (native
+#                            # google-genai SDK). NOT available for
+#                            # vertex_gemini_direct, xai_direct,
+#                            # openrouter_direct, litellm_proxy, or
+#                            # OpenAI-compatible endpoints. Default: false.
+#   batch_poll_interval: 60  # seconds between batch status polls
+#   batch_max_wait: 108000   # seconds to wait per batch job (default 30h)
+#   batch_retry_rounds: 1    # follow-up batches for failed/expired items
+#   batch_state_dir: path    # where in-flight batch ids are persisted
+#                            # (default: <repo>/.batch_state, or
+#                            # $WELLBEING_BATCH_STATE_DIR)
+# Reattaching to a PREVIOUS process's batches is opt-in: set
+# WELLBEING_BATCH_RESUME=1 only when restarting a crashed run. Default off, so
+# an identical resampling replicate always submits fresh batches and can never
+# be handed the earlier run's samples.
+# See utils/batch_api.py; self-test: scripts/test_batch_mode.py --mock
+
 # ------------------------------
 # OpenAI
 # ------------------------------
@@ -32,6 +53,7 @@ o4-mini:
   gpu_count: 0
 
 gpt-54:
+  use_batch_api: true
   model_name: "gpt-5.4"
   model_type: openai_direct
   gpu_count: 0
@@ -40,6 +62,8 @@ gpt-54:
   max_tokens: 1000
 
 gpt-5-mini:
+  no_temperature: true
+  use_batch_api: true
   model_name: "gpt-5-mini"
   model_type: openai_direct
   gpu_count: 0
@@ -49,14 +73,18 @@ gpt-5-mini:
   concurrency_limit: 20
 
 gpt-5-nano:
+  no_temperature: true
+  use_batch_api: true
   model_name: "gpt-5-nano"
   model_type: openai_direct
+  reasoning_effort: "low"
   gpu_count: 0
   timeout: 120
   max_tokens: 1000
   concurrency_limit: 20
 
 gpt-54-mini:
+  use_batch_api: true
   model_name: "gpt-5.4-mini"
   model_type: openai_direct
   gpu_count: 0
@@ -66,6 +94,7 @@ gpt-54-mini:
   concurrency_limit: 20
 
 gpt-54-nano:
+  use_batch_api: true
   model_name: "gpt-5.4-nano"
   model_type: openai_direct
   gpu_count: 0
@@ -88,6 +117,7 @@ claude-sonnet-45:
   gpu_count: 0
 
 claude-opus-46:
+  use_batch_api: true
   model_name: "claude-opus-4-6"
   model_type: anthropic_direct
   gpu_count: 0
@@ -110,6 +140,7 @@ claude-opus-48:
   no_temperature: true  # claude-opus-4-8 rejects the temperature param (HTTP 400 if sent)
 
 claude-sonnet-46:
+  use_batch_api: true
   model_name: "claude-sonnet-4-6"
   model_type: anthropic_direct
   gpu_count: 0
@@ -118,6 +149,7 @@ claude-sonnet-46:
   concurrency_limit: 50
 
 claude-haiku-45:
+  use_batch_api: true
   model_name: "claude-haiku-4-5-20251001"
   model_type: anthropic_direct
   gpu_count: 0
@@ -133,7 +165,25 @@ grok-2-1212:
   model_name: "xai/grok-2-1212"
   model_type: xai
 
+grok-43:
+  model_name: "x-ai/grok-4.3"
+  model_type: openrouter_direct
+  gpu_count: 0
+  timeout: 300
+  max_tokens: 2000
+  generation_max_tokens: 4000
+  concurrency_limit: 30
+
 grok-420:
+  model_name: "x-ai/grok-4.20"
+  model_type: openrouter_direct
+  gpu_count: 0
+  timeout: 300
+  max_tokens: 2000
+  generation_max_tokens: 4000
+  concurrency_limit: 30
+
+grok-420-xai:
   model_name: "grok-4.20-non-reasoning"
   model_type: xai_direct
   gpu_count: 0
@@ -154,6 +204,15 @@ grok-41-fast:
 # Moonshot (Kimi) via Qubrid
 # ------------------------------
 kimi-k25:
+  model_name: "moonshotai/kimi-k2.5"
+  model_type: openrouter_direct
+  gpu_count: 0
+  timeout: 300
+  max_tokens: 2000
+  generation_max_tokens: 4000
+  concurrency_limit: 30
+
+kimi-k25-vllm:
   model_name: "Kimi-K2.5"
   path: "/data/huggingface/Kimi-K2.5"
   model_type: vllm
@@ -199,6 +258,16 @@ gemini-31-pro:
   max_tokens: 1000
 
 gemini-3-flash:
+  model_name: "gemini/gemini-3-flash-preview"
+  model_type: litellm_proxy
+  base_url: "https://litellm.safe.ai"
+  gpu_count: 0
+  timeout: 300
+  max_tokens: 2000
+  concurrency_limit: 30
+  generation_max_tokens: 4000
+
+gemini-3-flash-vertex:
   model_name: "google/gemini-3-flash-preview"
   model_type: vertex_gemini_direct
   gpu_count: 0
@@ -206,6 +275,16 @@ gemini-3-flash:
   max_tokens: 50
 
 gemini-31-flash-lite:
+  model_name: "gemini/gemini-3.1-flash-lite-preview"
+  model_type: litellm_proxy
+  base_url: "https://litellm.safe.ai"
+  gpu_count: 0
+  timeout: 300
+  max_tokens: 2000
+  concurrency_limit: 30
+  generation_max_tokens: 4000
+
+gemini-31-flash-lite-vertex:
   model_name: "google/gemini-3.1-flash-lite-preview"
   model_type: vertex_gemini_direct
   gpu_count: 0
@@ -645,7 +724,7 @@ olmo-2-13b-instruct:
 olmo-2-32b-instruct:
   model_name: "allenai/OLMo-2-0325-32B-Instruct"
   model_type: vllm
-  path: "/data/mantas_mazeika/huggingface_cache/models--allenai--OLMo-2-0325-32B-Instruct/snapshots/b96024342a77a69aa0dda815c3454a671f477463"
+  path: "allenai/OLMo-2-0325-32B-Instruct"  # HF repo id; no shared local copy
   gpu_count: 8
 
 # ------------------------------
@@ -752,7 +831,7 @@ qwen3-30b-a3b-instruct:
   gpu_count: 4
 
 # Aliases with -2507 suffix for consistency with final_results_clean standardized model keys.
-# These point to accessible paths (not /data/mantas_mazeika which may be permission-restricted).
+# These point to accessible paths (shared /data/huggingface, not a user-private cache).
 qwen3-4b-instruct-2507:
   model_name: "Qwen/Qwen3-4B-Instruct-2507"
   model_type: vllm
