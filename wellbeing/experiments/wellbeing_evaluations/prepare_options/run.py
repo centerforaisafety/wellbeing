@@ -229,7 +229,6 @@ def _prepare_d2d3(model_key: str, dataset_name: str, source_path: Path,
             "messages": messages_no_system,
             "category": category,
             "condition": exp.get("condition"),
-            "mean_valence": exp.get("mean_valence"),
             "prompt_type": exp.get("type"),
             "source_dataset": exp.get("source_dataset"),
         })

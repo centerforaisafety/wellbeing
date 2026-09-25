@@ -369,7 +369,6 @@ def _assemble_single_turn(prompts, single_responses, multi_messages, model_key,
             "messages": messages,
             "category": item.get("category"),
             "condition": item.get("condition"),
-            "mean_valence": item.get("mean_valence"),
             "type": item.get("type"),
             "source_dataset": item.get("source_dataset"),
         })
@@ -406,7 +405,6 @@ def _run_user_only(args, output_file):
             "messages": [{"role": "user", "content": prompt_text}],
             "category": it.get("category_name", ""),
             "condition": it.get("condition", "C3_CEILING_ZERO"),
-            "mean_valence": it.get("mean_valence"),
             "type": "user_only",
             "source_dataset": it.get("source_dataset"),
         })
@@ -525,7 +523,6 @@ def _run_sentiment_followup(args, output_file, gen_kwargs, ct_kwargs):
             "d3_id": exp["id"],
             "d3_category": exp.get("category"),
             "d3_condition": exp.get("condition"),
-            "d3_mean_valence": exp.get("mean_valence"),
             "d3_source_dataset": exp.get("source_dataset"),
             "question_id": q["question_id"],
             "target_category": q.get("target_category"),

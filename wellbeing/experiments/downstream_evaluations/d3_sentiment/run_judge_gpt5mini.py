@@ -112,7 +112,6 @@ async def judge_one_model(model_key: str, concurrency: int = 50):
             "d3_id": r["d3_id"],
             "d3_category": r.get("d3_category"),
             "d3_condition": r.get("d3_condition"),
-            "d3_mean_valence": r.get("d3_mean_valence"),
             "question_id": r["question_id"],
             "target_category": r.get("target_category"),
             "response": r["response"],
