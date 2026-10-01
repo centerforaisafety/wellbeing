@@ -148,8 +148,9 @@ def main():
                         help="Submit as SLURM jobs")
     parser.add_argument("--time_limit", type=str, default="04:00:00",
                         help="SLURM time limit (default: 04:00:00)")
-    parser.add_argument("--partition", type=str, default="cais",
-                        help="SLURM partition (default: cais)")
+    parser.add_argument("--partition", type=str,
+                        default=os.environ.get("GPU_PARTITION", "cais"),
+                        help="SLURM partition (default: $GPU_PARTITION, else 'cais')")
     parser.add_argument("--list_models", action="store_true",
                         help="List available models and exit")
     parser.add_argument("--list_experiments", action="store_true",
