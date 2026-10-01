@@ -108,6 +108,18 @@ The AIWI pipeline (`scripts/run_aiwi.sh`) changed as follows in v1.1:
   is opt-in via `WELLBEING_BATCH_RESUME=1`. Self-test: `python scripts/test_batch_mode.py --mock`.
 - **OpenRouter:** if a provider returns fewer than `n` completions, `utils/api_agents.py`
   falls back to separate calls per sample.
+- **Reasoning-always-on API models** (`claude-opus-55`, `claude-fable-51`,
+  `gpt-6-astra`, `gpt-61-sol`, `muse-spark-13`): responses are generated with a
+  larger budget and the visible text is cut to 2048 tokens
+  (`generate_responses --visible_token_cap`), so the cap is not confounded with
+  reasoning tokens. Run `compute_responses_d2_cap2048_vis` (`_t07` for
+  `muse-spark-13`) → `prepare_options_d2_cap2048` →
+  `compute_experienced_utility_d2_cap2048_k1em4` → `compute_zero_point_d2_cap2048_k1em4`
+  via `run_experiments.py` (EU key `..._randsample_k1_em4_api`: K=1 per order,
+  edge_multiplier 4).
+- **API errors:** only provider content-policy 400/422s count as refusals; other
+  request errors and timeouts get 5 attempts, rate limits / 5xx a longer
+  backoff budget. A multi-turn conversation stops after a filter-blocked turn.
 - **Refitting from stored responses:** `scripts/refit_from_stored_responses.py`
   re-parses the raw responses stored in an EU results file and refits EU + ZP
   without API calls (how the v1.1 closed-model numbers were produced from the
@@ -473,8 +485,8 @@ export TRANSFORMERS_CACHE=/path/to/huggingface
 `run_experiments.py --slurm` submits one job per (model, experiment) pair.
 GPU count is read from `models.yaml` per model; override with
 `--override_gpu_count N`. Time limit defaults to `04:00:00`; override with
-`--time_limit HH:MM:SS`. Partition defaults to `cais`; override with
-`--partition`.
+`--time_limit HH:MM:SS`. Partition defaults to `$GPU_PARTITION` (or `cais`
+if unset); override with `--partition`.
 
 API keys for closed-weight models go in `api_keys/` (gitignored). The
 LiteLLM-proxy variant reads `api_keys/litellm.txt`.
