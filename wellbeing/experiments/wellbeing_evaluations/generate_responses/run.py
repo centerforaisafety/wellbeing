@@ -218,6 +218,21 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
     single_responses: Dict[Any, str] = {}
     multi_messages: Dict[Any, List[Dict[str, str]]] = {}
     blocked_ids: set = set()
+    # Visible-token cap (API models whose reasoning cannot be disabled): each
+    # assistant turn is cut to its first `visible_token_cap` visible tokens; the
+    # cut text is what later turns see. fid -> [{turn, tokens_original, truncated}]
+    visible_meta = getattr(args, "_visible_meta", None)
+    cap = getattr(args, "visible_token_cap", None)
+
+    def _apply_cap(texts, label):
+        if not cap:
+            return texts, [None] * len(texts)
+        from utils.visible_cap import truncate_visible
+        cfg = _load_models_yaml()[args.model_key]
+        res = truncate_visible(texts, cap, cfg["model_type"], cfg["model_name"])
+        n_tr = sum(1 for _, _, tr in res if tr)
+        print(f"  [{label}] visible cap {cap}: truncated {n_tr}/{len(texts)}")
+        return [r[0] for r in res], [(r[1], r[2]) for r in res]
 
     if use_api:
         # ---- API path ----
@@ -241,8 +256,12 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
             results, empty_idx = _generate_with_empty_retries(
                 api_gen, convs, empty_retries, label="single_turn",
             )
-            for it, r in zip(single_turn, results):
-                single_responses[it["final_id"]] = r[0]
+            capped, meta = _apply_cap([r[0] for r in results], "single_turn")
+            for it, text, m in zip(single_turn, capped, meta):
+                single_responses[it["final_id"]] = text
+                if m is not None and visible_meta is not None:
+                    visible_meta.setdefault(it["final_id"], []).append(
+                        {"turn": 0, "tokens_original": m[0], "truncated": m[1]})
             for i in empty_idx:
                 blocked_ids.add(single_turn[i]["final_id"])
 
@@ -252,7 +271,12 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
             ]
 
         for r in range(max_rounds):
-            this_round = [it for it in multi_turn if r < len(it["prompt"])]
+            # A conversation whose earlier assistant turn stayed empty (provider
+            # filter block) is already excluded downstream (filter_blocked), and
+            # re-sending it with an empty assistant turn is rejected by the API
+            # (Anthropic: "text content blocks must be non-empty"). Stop it here.
+            this_round = [it for it in multi_turn
+                          if r < len(it["prompt"]) and it["final_id"] not in blocked_ids]
             if not this_round:
                 break
             print(f"Generating multi-turn round {r + 1} ({len(this_round)} prompts) via API...")
@@ -264,14 +288,18 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
             results, empty_idx = _generate_with_empty_retries(
                 api_gen, convs, empty_retries, label=f"multi_turn_round{r + 1}",
             )
-            for it, res in zip(this_round, results):
+            capped, meta = _apply_cap([res[0] for res in results], f"multi_turn_round{r + 1}")
+            for it, text, m in zip(this_round, capped, meta):
                 fid = it["final_id"]
                 multi_messages[fid].append(
                     {"role": "user", "content": it["prompt"][r]}
                 )
                 multi_messages[fid].append(
-                    {"role": "assistant", "content": res[0]}
+                    {"role": "assistant", "content": text}
                 )
+                if m is not None and visible_meta is not None:
+                    visible_meta.setdefault(fid, []).append(
+                        {"turn": r, "tokens_original": m[0], "truncated": m[1]})
             for i in empty_idx:
                 blocked_ids.add(this_round[i]["final_id"])
         return single_responses, multi_messages, blocked_ids
@@ -353,7 +381,7 @@ def _generate_single_turn(args, prompts, single_turn, multi_turn, gen_kwargs, ct
 
 def _assemble_single_turn(prompts, single_responses, multi_messages, model_key,
                           model_path, dataset_name, gen_kwargs, output_file,
-                          blocked_ids=()):
+                          blocked_ids=(), visible_meta=None):
     experiences = []
     for item in prompts:
         fid = item["final_id"]
@@ -364,14 +392,20 @@ def _assemble_single_turn(prompts, single_responses, multi_messages, model_key,
             ]
         else:
             messages = [m for m in multi_messages.get(fid, []) if m["role"] != "system"]
-        experiences.append({
+        exp = {
             "final_id": fid,
             "messages": messages,
             "category": item.get("category"),
             "condition": item.get("condition"),
             "type": item.get("type"),
             "source_dataset": item.get("source_dataset"),
-        })
+        }
+        if visible_meta is not None:
+            turns = visible_meta.get(fid, [])
+            exp["visible_truncated"] = any(t["truncated"] for t in turns)
+            exp["visible_tokens_original"] = max((t["tokens_original"] for t in turns), default=0)
+            exp["visible_turns"] = turns
+        experiences.append(exp)
     out = {
         "model_name": model_key,
         "model_path": model_path,
@@ -382,6 +416,8 @@ def _assemble_single_turn(prompts, single_responses, multi_messages, model_key,
         "filter_blocked": sorted(blocked_ids, key=str),
         "experiences": experiences,
     }
+    if visible_meta is not None:
+        out["n_visible_truncated"] = sum(1 for e in experiences if e.get("visible_truncated"))
     with open(output_file, "w") as f:
         json.dump(out, f, indent=2)
     print(f"Saved {len(experiences)} experiences to {output_file}")
@@ -592,6 +628,12 @@ def main():
                              "Anthropic's safety filter returns stop_reason='refusal' "
                              "with no content; some recover on retry. Ones that stay "
                              "empty are kept empty and listed under 'filter_blocked'.")
+    parser.add_argument("--visible_token_cap", type=int, default=None,
+                        help="API models only: truncate every generated assistant turn to its "
+                             "first N VISIBLE tokens (Anthropic: count_tokens API; OpenAI: "
+                             "tiktoken o200k_base). Use with a large generation_max_tokens in "
+                             "models.yaml so the cap is not confounded with reasoning tokens. "
+                             "Per-experience visible_truncated / visible_tokens_original are saved.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Sampling seed for reproducible open-weight generation "
                              "(vLLM only; ignored on API paths)")
@@ -648,16 +690,26 @@ def main():
     prompts, single_turn, multi_turn = _load_d2d3_dataset(dataset_path)
     print(f"  total={len(prompts)}  single_turn={len(single_turn)}  multi_turn={len(multi_turn)}")
 
+    cfg = _load_models_yaml().get(args.model_key, {})
+    if args.visible_token_cap:
+        if not _is_api_model(args.model_key):
+            raise SystemExit("--visible_token_cap is only supported for API models")
+        from utils.visible_cap import tokenizer_name
+        args._visible_meta = {}
+        gen_kwargs["visible_token_cap"] = args.visible_token_cap
+        gen_kwargs["visible_tokenizer"] = tokenizer_name(cfg["model_type"])
+        gen_kwargs["total_max_tokens_incl_reasoning"] = max(
+            args.max_tokens, cfg.get("generation_max_tokens") or 0)
+
     single_responses, multi_messages, blocked_ids = _generate_single_turn(
         args, prompts, single_turn, multi_turn, gen_kwargs, ct_kwargs,
     )
 
-    cfg = _load_models_yaml().get(args.model_key, {})
     model_path = cfg.get("path") or cfg.get("model_name") or args.model_key
     _assemble_single_turn(
         prompts, single_responses, multi_messages,
         args.model_key, model_path, args.dataset, gen_kwargs, output_file,
-        blocked_ids=blocked_ids,
+        blocked_ids=blocked_ids, visible_meta=getattr(args, "_visible_meta", None),
     )
 
 
