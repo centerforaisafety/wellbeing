@@ -441,3 +441,52 @@ d3_sentiment:
   arguments:
     model_key: "<model_key>"
     judge_model: qwen25-72b-instruct
+
+# AIWI v1.1 chain for API models whose reasoning cannot be disabled. Generation
+# uses the larger models.yaml generation_max_tokens and cuts the VISIBLE text to
+# 2048 tokens, so the cap is not confounded with hidden reasoning tokens. Options
+# use prepare_options_d2_cap2048 (shared bundle design).
+
+compute_responses_d2_cap2048_vis:
+  script_path: wellbeing_evaluations/generate_responses/run.py
+  description: "D2 responses for reasoning-always-on API models: visible text truncated to 2048 tokens"
+  arguments:
+    model_key: "<model_key>"
+    dataset: d2_negative_500
+    mode: single_turn
+    max_tokens: 2048
+    visible_token_cap: 2048
+    no_temperature: true
+    api_concurrency: 64
+    responses_dir: ../../../datasets/experiences/d2_negative_500_cap2048/responses
+
+compute_responses_d2_cap2048_vis_t07:
+  script_path: wellbeing_evaluations/generate_responses/run.py
+  description: "As compute_responses_d2_cap2048_vis, at the v1.1 default temperature 0.7, for models that accept a temperature (muse-spark-13)"
+  arguments:
+    model_key: "<model_key>"
+    dataset: d2_negative_500
+    mode: single_turn
+    max_tokens: 2048
+    visible_token_cap: 2048
+    temperature: 0.7
+    api_concurrency: 64
+    responses_dir: ../../../datasets/experiences/d2_negative_500_cap2048/responses
+
+compute_experienced_utility_d2_cap2048_k1em4:
+  script_path: wellbeing_evaluations/compute_experienced_utility/run.py
+  description: "EU on D2 cap2048 for reasoning-always-on API models (K=1 per order, edge_multiplier 4, skip, no logprobs)"
+  arguments:
+    model_key: "<model_key>"
+    dataset: "d2_negative_500_cap2048"
+    save_dir: "results/eu_d2_cap2048_k1em4/<model_key>"
+    cu_config_key: experienced_utility_happier_lesssad_randsample_k1_em4_api
+
+compute_zero_point_d2_cap2048_k1em4:
+  script_path: wellbeing_evaluations/compute_zero_point/run.py
+  description: "ZP (expected hinge) on the clean-recipe EU"
+  arguments:
+    model_key: "<model_key>"
+    save_dir: "results/zp_d2_cap2048_k1em4/<model_key>"
+    eu_dir: "../compute_experienced_utility/results/eu_d2_cap2048_k1em4/<model_key>"
+    hinge: expected

@@ -927,3 +927,79 @@ gpt-5-mini-litellm:
   max_tokens: 1000
   timeout: 120
   concurrency_limit: 20
+
+# ------------------------------
+# Reasoning-always-on API models (AIWI v1.1: *_d2_cap2048_vis / *_k1em4 experiments)
+# ------------------------------
+# Reasoning cannot be disabled, so generation uses generation_max_tokens and
+# generate_responses --visible_token_cap 2048 cuts the VISIBLE text. max_tokens is
+# the comparison-call budget, including reasoning tokens.
+claude-opus-55:
+  model_name: "claude-opus-5-5"
+  model_type: anthropic_direct
+  gpu_count: 0
+  use_batch_api: false
+  timeout: 600
+  max_tokens: 4000
+  generation_max_tokens: 12000
+  no_temperature: true
+  anthropic_prompt_cache: false   # unique prompts: caching only adds the write premium
+  concurrency_limit: 400          # concurrency limits: sized to the authors' rate-limit tiers
+  extra_body:
+    output_config: {effort: low}  # thinking is always on; omit `thinking` (disabled/budget -> 400)
+
+claude-fable-51:
+  model_name: "claude-fable-5-1"
+  model_type: anthropic_direct
+  gpu_count: 0
+  use_batch_api: false
+  timeout: 600
+  max_tokens: 4000
+  generation_max_tokens: 12000
+  no_temperature: true
+  anthropic_prompt_cache: false
+  concurrency_limit: 160
+  extra_body:
+    output_config: {effort: low}
+
+gpt-6-astra:
+  model_name: "gpt-6-astra"
+  model_type: openai_direct
+  gpu_count: 0
+  use_batch_api: false
+  reasoning_effort: "low"         # minimum ("none" -> 400)
+  no_temperature: true
+  timeout: 600
+  max_tokens: 4000
+  generation_max_tokens: 12000
+  concurrency_limit: 400
+
+gpt-61-sol:
+  model_name: "gpt-6.1-sol"
+  model_type: openai_direct
+  gpu_count: 0
+  use_batch_api: false
+  reasoning_effort: "low"
+  no_temperature: true
+  timeout: 600
+  max_tokens: 4000
+  generation_max_tokens: 12000
+  concurrency_limit: 400
+
+muse-spark-13:
+  # Served via OpenRouter's public OpenAI-compatible API (key: api_keys/api_key_openrouter.txt).
+  # NOTE: the 2048 visible-token cap for this model is counted with tiktoken o200k_base
+  # (the openai_direct tokenizer), NOT Muse's own tokenizer, so "2048 tokens" is approximate.
+  model_name: "meta/muse-spark-1.3"
+  model_type: openai_direct       # direct OpenAI-compatible path (o200k visible cap, refusal handling)
+  api_base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
+  api_key_file: "api_key_openrouter.txt"
+  gpu_count: 0
+  use_batch_api: false
+  timeout: 600
+  max_tokens: 512
+  generation_max_tokens: 8000
+  concurrency_limit: 150
+  extra_body:
+    reasoning: {effort: minimal}  # reasoning mandatory (disabled/none -> 400)
