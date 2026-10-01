@@ -271,6 +271,11 @@ def create_agent(model_key, temperature=1.0, max_tokens=10, concurrency_limit=50
         generation_config['max_tokens'] = max_tokens
         if 'reasoning_effort' in model_config:
             generation_config['reasoning_effort'] = model_config['reasoning_effort']
+        # Provider-specific raw request fields (e.g. Anthropic thinking/output_config)
+        if 'extra_body' in model_config:
+            generation_config['extra_body'] = model_config['extra_body']
+        if model_config.get('no_temperature'):
+            generation_config.pop('temperature', None)
 
         # For Anthropic, max_tokens is required
         if model_type == 'anthropic_direct' and 'max_tokens' not in generation_config:
@@ -279,7 +284,9 @@ def create_agent(model_key, temperature=1.0, max_tokens=10, concurrency_limit=50
         # Enable prompt caching for Anthropic
         extra_agent_kwargs = {}
         if model_type == 'anthropic_direct':
-            extra_agent_kwargs['use_cache'] = True
+            # Every comparison prompt is unique, so caching only adds the 1.25x
+            # cache-write premium; models can opt out via anthropic_prompt_cache: false.
+            extra_agent_kwargs['use_cache'] = model_config.get('anthropic_prompt_cache', True)
 
         # Pass custom API base URL and key env var if specified in model config
         if 'api_base_url' in model_config:
@@ -288,6 +295,11 @@ def create_agent(model_key, temperature=1.0, max_tokens=10, concurrency_limit=50
             extra_agent_kwargs['provider'] = 'openai_compatible'
         if 'api_key_env' in model_config:
             extra_agent_kwargs['api_key_env'] = model_config['api_key_env']
+        # Optional key file (api_keys/<api_key_file>) loaded into api_key_env if unset
+        if 'api_key_file' in model_config and 'api_key_env' in model_config and not os.environ.get(model_config['api_key_env']):
+            _kp = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, 'api_keys', model_config['api_key_file'])
+            with open(_kp) as _f:
+                os.environ[model_config['api_key_env']] = _f.read().strip()
 
         underlying_agent = agent_cls(model=model_name, **generation_config, **extra_agent_kwargs)
 

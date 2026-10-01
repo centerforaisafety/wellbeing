@@ -280,7 +280,18 @@ class AnthropicAgent(BaseLLMAgent):
         return system, caching_messages
 
     def _parse_response(self, response):
-        content = response.content[-1].text if response.content else ""
+        # Visible text only: join the text blocks (thinking blocks are skipped, so
+        # a thinking-enabled response whose last block is not text cannot raise).
+        # stop_reason "refusal" (API safety classifier) is returned as empty
+        # content -- a refusal, never partial text -- so callers treat it as
+        # blocked/unparseable instead of retrying.
+        if getattr(response, "stop_reason", None) == "refusal":
+            content = ""
+        else:
+            content = "".join(
+                getattr(b, "text", "") for b in (response.content or [])
+                if getattr(b, "type", None) == "text"
+            )
         usage = response.usage
         cost = self._calculate_cost(response)
         token_usage = TokenUsage(
@@ -364,6 +375,103 @@ class VertexGeminiAgent(OpenAIAgent):
 # ---------------------------------------------------------------------------
 # DirectAPIAgent: adapter matching the LiteLLMAgent.async_completions() interface
 # ---------------------------------------------------------------------------
+
+# Markers of a provider CONTENT-POLICY rejection (as opposed to a malformed
+# request). Matched case-insensitively against the error code/type/message.
+#   OpenAI:  "This content was flagged for possible cybersecurity risk" /
+#            "... biological risk", "Invalid prompt: your prompt was flagged as
+#            potentially violating our usage policy" (code invalid_prompt)
+#   Azure / OpenAI-compatible proxies: code "content_filter", "content_policy_violation"
+#   Anthropic: "Output blocked by content filtering policy"
+# Anthropic's normal safety refusal is NOT an exception: it is a 200 with
+# stop_reason="refusal", handled in AnthropicAgent._parse_response.
+_CONTENT_POLICY_CODES = {
+    "content_filter", "content_policy_violation", "invalid_prompt",
+    "content_policy", "safety", "responsible_ai_policy_violation",
+}
+_CONTENT_POLICY_PATTERNS = (
+    "content was flagged",
+    "was flagged for possible",
+    "flagged as potentially violating",
+    "violating our usage policy",
+    "usage policies",
+    "content filtering policy",
+    "content management policy",
+    "content_filter",
+    "content_policy",
+    "safety system",
+)
+
+
+def _error_fields(e: Exception) -> List[str]:
+    """Collect code/type/message strings from an SDK exception and its body."""
+    out = [str(getattr(e, "code", "") or ""), str(getattr(e, "type", "") or ""),
+           str(getattr(e, "message", "") or ""), str(e)]
+    body = getattr(e, "body", None)
+    stack = [body]
+    while stack:
+        b = stack.pop()
+        if isinstance(b, dict):
+            for k, v in b.items():
+                if isinstance(v, (dict, list)):
+                    stack.append(v)
+                elif k in ("code", "type", "message", "param") and v is not None:
+                    out.append(str(v))
+        elif isinstance(b, list):
+            stack.extend(b)
+    return [x.lower() for x in out if x]
+
+
+def _is_content_policy_error(e: Exception) -> bool:
+    fields = _error_fields(e)
+    if any(f.strip() in _CONTENT_POLICY_CODES for f in fields):
+        return True
+    return any(pat in f for f in fields for pat in _CONTENT_POLICY_PATTERNS)
+
+
+def _classify_api_error(e: Exception) -> str:
+    """Classify a provider exception for the live retry loop.
+
+    "refusal":   HTTP 400/422 whose code/message identifies a provider
+                 content-policy block (see _CONTENT_POLICY_*), e.g. OpenAI's
+                 "content was flagged for possible cybersecurity risk". Retrying
+                 returns the same error, so the call is recorded as a refusal
+                 (None) immediately.
+    "timeout":   request timeouts (client-side or HTTP 408). Share the 5-attempt
+                 budget with "other": a prompt that keeps timing out is unlikely
+                 to succeed, and 40 slow retries would stall the whole run.
+    "transient": rate limits (429), overload/server errors (5xx, 529) and
+                 connection errors. Retried with a longer budget so a 429 storm
+                 is never silently turned into skipped comparisons.
+    "other":     anything else, INCLUDING ordinary 400/422 request errors
+                 (empty content blocks, context length exceeded, bad params).
+                 These get the original 5-attempt behaviour and are counted as
+                 errors, never as refusals.
+    """
+    status = getattr(e, "status_code", None)
+    if status is None:
+        status = getattr(getattr(e, "response", None), "status_code", None)
+    if isinstance(e, (openai.APITimeoutError, anthropic.APITimeoutError)) or status == 408:
+        return "timeout"
+    if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)):
+        return "transient"
+    if status in (400, 422) and _is_content_policy_error(e):
+        return "refusal"
+    if status in (409, 429) or (isinstance(status, int) and status >= 500):
+        return "transient"
+    return "other"
+
+
+def _retry_after_seconds(e: Exception) -> Optional[float]:
+    try:
+        v = getattr(getattr(e, "response", None), "headers", {}).get("retry-after")
+        return float(v) if v is not None else None
+    except Exception:
+        return None
+
+
+TRANSIENT_MAX_RETRIES = 40
+
 
 class DirectAPIAgent:
     """
@@ -466,7 +574,7 @@ class DirectAPIAgent:
         from tqdm.asyncio import tqdm_asyncio
 
         semaphore = asyncio.Semaphore(self.concurrency_limit)
-        counts = {"timeouts": 0, "errors": 0}
+        counts = {"timeouts": 0, "errors": 0, "refusals_400": 0, "transient": 0}
         results = {}
 
         async def process_message(message_idx: int):
@@ -474,7 +582,13 @@ class DirectAPIAgent:
             retry_delay = 1.0
             response = None
 
-            for attempt in range(self.max_retries):
+            attempt = -1
+            n_other = 0
+            n_transient = 0
+            while True:
+                attempt += 1
+                if n_other >= self.max_retries:
+                    break
                 async with semaphore:
                     try:
                         llm_response = await self.agent._async_completions(message)
@@ -482,23 +596,55 @@ class DirectAPIAgent:
                         response = content.strip() if content else None
                         break
                     except asyncio.TimeoutError:
+                        n_other += 1
                         counts["timeouts"] += 1
                         if verbose:
                             print(
-                                f"[Timeout] Attempt {attempt+1}/{self.max_retries} "
+                                f"[Timeout] Attempt {n_other}/{self.max_retries} "
                                 f"for message index {message_idx}."
                             )
-                        if attempt == self.max_retries - 1:
-                            response = None
                         continue
                     except Exception as e:
+                        kind = _classify_api_error(e)
+                        if kind == "timeout":
+                            n_other += 1
+                            counts["timeouts"] += 1
+                            if verbose:
+                                print(
+                                    f"[Timeout] Attempt {n_other}/{self.max_retries} "
+                                    f"for message index {message_idx}: {type(e).__name__}"
+                                )
+                            continue
+                        if kind == "refusal":
+                            # Deterministic content-policy 400 (e.g. content flagged): a refusal.
+                            counts["refusals_400"] += 1
+                            if verbose and counts["refusals_400"] <= 20:
+                                print(f"[Refusal/400] message index {message_idx}: {str(e)[:300]}")
+                            response = None
+                            break
+                        if kind == "transient":
+                            counts["transient"] += 1
+                            n_transient += 1
+                            if verbose and counts["transient"] <= 10:
+                                print(f"[Transient] message index {message_idx}: "
+                                      f"{type(e).__name__}: {str(e)[:200]}")
+                            if n_transient >= TRANSIENT_MAX_RETRIES:
+                                print(f"[Transient] giving up on message index {message_idx} "
+                                      f"after {n_transient} attempts: {str(e)[:200]}")
+                                response = None
+                                break
+                            ra = _retry_after_seconds(e)
+                            sleep_for = max(ra or 0.0, min(2.0 ** min(n_transient, 6), 60.0)) + random.uniform(0, 2)
+                            await asyncio.sleep(sleep_for)
+                            continue
                         counts["errors"] += 1
+                        n_other += 1
                         if verbose:
                             print(
-                                f"[Error] Attempt {attempt+1}/{self.max_retries} "
+                                f"[Error] Attempt {n_other}/{self.max_retries} "
                                 f"for message index {message_idx}: {e}"
                             )
-                        if attempt == self.max_retries - 1:
+                        if n_other >= self.max_retries:
                             response = None
                         else:
                             sleep_for = retry_delay + random.uniform(0, 1)
@@ -518,7 +664,9 @@ class DirectAPIAgent:
             await coro
 
         if verbose:
-            print(f"Timeouts: {counts['timeouts']}, Errors: {counts['errors']}")
+            print(f"Timeouts: {counts['timeouts']}, Errors: {counts['errors']}, "
+                  f"Refusals(400): {counts['refusals_400']}, Transient retries: {counts['transient']}, "
+                  f"None/empty: {sum(1 for v in results.values() if v is None)}/{len(messages)}")
             usage = self.agent.all_token_usage
             print(
                 f"Cost so far: ${usage.cost:.4f} "

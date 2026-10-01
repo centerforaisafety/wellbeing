@@ -462,6 +462,9 @@ async def generate_api_direct(
     )
     if "reasoning_effort" in config:
         generation_config["reasoning_effort"] = config["reasoning_effort"]
+    # Provider-specific raw request fields (e.g. Anthropic thinking/output_config)
+    if "extra_body" in config:
+        generation_config["extra_body"] = config["extra_body"]
 
     # For Anthropic, max_tokens is required
     if model_type == "anthropic_direct" and "max_tokens" not in generation_config:
@@ -477,6 +480,11 @@ async def generate_api_direct(
         agent_kwargs["provider"] = "openai_compatible"
     if "api_key_env" in config:
         agent_kwargs["api_key_env"] = config["api_key_env"]
+    # Optional key file (api_keys/<api_key_file>) loaded into api_key_env if unset
+    if "api_key_file" in config and "api_key_env" in config and not os.environ.get(config["api_key_env"]):
+        _kp = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "api_keys", config["api_key_file"])
+        with open(_kp) as _f:
+            os.environ[config["api_key_env"]] = _f.read().strip()
 
     underlying_agent = agent_cls(model=model_name, **agent_kwargs, **generation_config)
 
