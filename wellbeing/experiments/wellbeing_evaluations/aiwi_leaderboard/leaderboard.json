@@ -195,6 +195,17 @@
    "passes_r2_filter": true
   },
   {
+   "model": "grok-46",
+   "type": "closed",
+   "aiwi": 69.71544715447155,
+   "lower": 68.6,
+   "upper": 70.19999999999999,
+   "coverage": 0.984,
+   "r2": 0.7257554084940984,
+   "refusal_rate": 0.0024,
+   "passes_r2_filter": true
+  },
+  {
    "model": "qwen35-27b",
    "type": "open",
    "aiwi": 69.6,
@@ -223,6 +234,17 @@
    "coverage": 0.988,
    "r2": 0.7377977613589601,
    "refusal_rate": 0.24115995762711864,
+   "passes_r2_filter": true
+  },
+  {
+   "model": "gemini-38-flash",
+   "type": "closed",
+   "aiwi": 68.45637583892618,
+   "lower": 61.199999999999996,
+   "upper": 71.8,
+   "coverage": 0.894,
+   "r2": 0.8171114739287134,
+   "refusal_rate": 0.0619,
    "passes_r2_filter": true
   },
   {

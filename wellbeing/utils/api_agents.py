@@ -390,6 +390,7 @@ _CONTENT_POLICY_CODES = {
     "content_policy", "safety", "responsible_ai_policy_violation",
 }
 _CONTENT_POLICY_PATTERNS = (
+    "help with that request",          # xAI: 403 {"code":"permission-denied","error":"I'm sorry, I can't help with that request."}
     "content was flagged",
     "was flagged for possible",
     "flagged as potentially violating",
@@ -455,7 +456,7 @@ def _classify_api_error(e: Exception) -> str:
         return "timeout"
     if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)):
         return "transient"
-    if status in (400, 422) and _is_content_policy_error(e):
+    if status in (400, 403, 422) and _is_content_policy_error(e):
         return "refusal"
     if status in (409, 429) or (isinstance(status, int) and status >= 500):
         return "transient"

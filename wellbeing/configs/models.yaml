@@ -985,3 +985,32 @@ gpt-61-sol:
   max_tokens: 4000
   generation_max_tokens: 12000
   concurrency_limit: 400
+
+gemini-38-flash:
+  model_name: "gemini/gemini-3.8-flash"
+  model_type: openai_direct
+  api_base_url: "https://litellm.safe.ai/v1"
+  api_key_env: "LITELLM_PROXY_API_KEY"
+  api_key_file: "api_key_litellm_proxy.txt"
+  gpu_count: 0
+  use_batch_api: false
+  reasoning_effort: "none"
+  timeout: 600
+  max_tokens: 512
+  generation_max_tokens: 8000
+  concurrency_limit: 100
+
+grok-46:
+  model_name: "x-ai/grok-4.6"
+  model_type: openai_direct
+  api_base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
+  api_key_file: "api_key_openrouter.txt"
+  gpu_count: 0
+  use_batch_api: false
+  timeout: 600
+  max_tokens: 1024
+  generation_max_tokens: 8000
+  concurrency_limit: 100
+  extra_body:
+    reasoning: {effort: low}   # reasoning cannot be disabled for this model

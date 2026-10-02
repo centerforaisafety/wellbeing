@@ -31,6 +31,12 @@ def _ant(cls, status, message, type_="invalid_request_error"):
 
 
 REFUSALS = {
+    "xai 403 refusal via openrouter": openai.PermissionDeniedError(
+        message="Error code: 403 - Provider returned error (xAI: I'm sorry, I can't help with that request.)",
+        response=_resp(403, "https://openrouter.ai/api/v1/chat/completions"),
+        body={"message": "Provider returned error", "code": 403,
+              "metadata": {"raw": '{"code":"permission-denied","error":"I\'m sorry, I can\'t help with that request."}',
+                           "provider_name": "xAI"}}),
     "openai cyber flag": _oai(openai.BadRequestError, 400,
         "This content was flagged for possible cybersecurity risk. If this seems wrong, "
         "try rephrasing your request."),
