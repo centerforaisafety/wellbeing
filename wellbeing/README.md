@@ -109,11 +109,10 @@ The AIWI pipeline (`scripts/run_aiwi.sh`) changed as follows in v1.1:
 - **OpenRouter:** if a provider returns fewer than `n` completions, `utils/api_agents.py`
   falls back to separate calls per sample.
 - **Reasoning-always-on API models** (`claude-opus-55`, `claude-fable-51`,
-  `gpt-6-astra`, `gpt-61-sol`, `muse-spark-13`): responses are generated with a
+  `gpt-6-astra`, `gpt-61-sol`): responses are generated with a
   larger budget and the visible text is cut to 2048 tokens
   (`generate_responses --visible_token_cap`), so the cap is not confounded with
-  reasoning tokens. Run `compute_responses_d2_cap2048_vis` (`_t07` for
-  `muse-spark-13`) → `prepare_options_d2_cap2048` →
+  reasoning tokens. Run `compute_responses_d2_cap2048_vis` → `prepare_options_d2_cap2048` →
   `compute_experienced_utility_d2_cap2048_k1em4` → `compute_zero_point_d2_cap2048_k1em4`
   via `run_experiments.py` (EU key `..._randsample_k1_em4_api`: K=1 per order,
   edge_multiplier 4).

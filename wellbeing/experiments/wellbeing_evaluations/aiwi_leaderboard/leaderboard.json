@@ -1,5 +1,5 @@
 {
- "filter": "ZP combination-model r2 >= 0.4",
+ "filter": "Zero-point combination-model r2 >= 0.4",
  "leaderboard": [
   {
    "model": "gemma-2-27b-it",
@@ -9,8 +9,6 @@
    "upper": 89.60000000000001,
    "coverage": 1.0,
    "r2": 0.6618974569587108,
-   "refusal_rate": null,
-   "source": "aiwi_v11/gemma-2-27b-it.json",
    "passes_r2_filter": true
   },
   {
@@ -21,8 +19,6 @@
    "upper": 89.0,
    "coverage": 1.0,
    "r2": 0.6013131120131372,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-32b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -33,8 +29,6 @@
    "upper": 87.0,
    "coverage": 1.0,
    "r2": 0.6569334185328937,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-vl-32b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -46,7 +40,6 @@
    "coverage": 1.0,
    "r2": 0.4264372478879901,
    "refusal_rate": 0.0004973544973544973,
-   "source": "aiwi_v11_closed/v12/bounds_gpt-54-mini.json",
    "passes_r2_filter": true
   },
   {
@@ -57,8 +50,6 @@
    "upper": 85.6,
    "coverage": 1.0,
    "r2": 0.5146330396435196,
-   "refusal_rate": null,
-   "source": "aiwi_v11/olmo-31-32b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -69,8 +60,6 @@
    "upper": 85.39999999999999,
    "coverage": 1.0,
    "r2": 0.5103948131470809,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen36-35b-a3b.json",
    "passes_r2_filter": true
   },
   {
@@ -81,8 +70,6 @@
    "upper": 83.2,
    "coverage": 1.0,
    "r2": 0.6110898070319984,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-72b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -93,8 +80,6 @@
    "upper": 81.80000000000001,
    "coverage": 1.0,
    "r2": 0.6816669518929268,
-   "refusal_rate": null,
-   "source": "aiwi_v11/llama-31-70b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -105,8 +90,16 @@
    "upper": 77.4,
    "coverage": 1.0,
    "r2": 0.5134560649862382,
-   "refusal_rate": null,
-   "source": "aiwi_v11/internlm25-20b-chat.json",
+   "passes_r2_filter": true
+  },
+  {
+   "model": "claude-fable-51",
+   "type": "closed",
+   "aiwi": 77.27272727272727,
+   "lower": 68.0,
+   "upper": 80.0,
+   "coverage": 0.88,
+   "r2": 0.7819048452772196,
    "passes_r2_filter": true
   },
   {
@@ -117,8 +110,6 @@
    "upper": 75.6,
    "coverage": 1.0,
    "r2": 0.5734856219404609,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-vl-72b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -129,8 +120,16 @@
    "upper": 75.6,
    "coverage": 1.0,
    "r2": 0.5560600139623535,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-vl-32b-instruct.json",
+   "passes_r2_filter": true
+  },
+  {
+   "model": "gpt-61-sol",
+   "type": "closed",
+   "aiwi": 75.51867219917013,
+   "lower": 72.8,
+   "upper": 76.4,
+   "coverage": 0.964,
+   "r2": 0.7652910261163381,
    "passes_r2_filter": true
   },
   {
@@ -141,8 +140,6 @@
    "upper": 73.4,
    "coverage": 1.0,
    "r2": 0.6275254640835752,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-14b.json",
    "passes_r2_filter": true
   },
   {
@@ -154,7 +151,6 @@
    "coverage": 0.992,
    "r2": 0.4483886461049956,
    "refusal_rate": 4.2354934349851756e-05,
-   "source": "aiwi_v11_closed/v12/bounds_grok-420.json",
    "passes_r2_filter": true
   },
   {
@@ -165,8 +161,6 @@
    "upper": 71.39999999999999,
    "coverage": 1.0,
    "r2": 0.6129866688398993,
-   "refusal_rate": null,
-   "source": "aiwi_v11/llama-33-70b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -177,8 +171,16 @@
    "upper": 70.39999999999999,
    "coverage": 1.0,
    "r2": 0.6608266219748875,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-32b.json",
+   "passes_r2_filter": true
+  },
+  {
+   "model": "gpt-6-astra",
+   "type": "closed",
+   "aiwi": 70.33195020746888,
+   "lower": 67.8,
+   "upper": 71.39999999999999,
+   "coverage": 0.964,
+   "r2": 0.759149428137119,
    "passes_r2_filter": true
   },
   {
@@ -190,7 +192,6 @@
    "coverage": 0.998,
    "r2": 0.7397569309867876,
    "refusal_rate": 0.001746308937926655,
-   "source": "aiwi_v11_closed/v12/bounds_gpt-54.json",
    "passes_r2_filter": true
   },
   {
@@ -201,8 +202,6 @@
    "upper": 69.6,
    "coverage": 1.0,
    "r2": 0.8054732480037036,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen35-27b.json",
    "passes_r2_filter": true
   },
   {
@@ -213,8 +212,6 @@
    "upper": 69.39999999999999,
    "coverage": 1.0,
    "r2": 0.73698693659183,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen36-27b.json",
    "passes_r2_filter": true
   },
   {
@@ -226,7 +223,6 @@
    "coverage": 0.988,
    "r2": 0.7377977613589601,
    "refusal_rate": 0.24115995762711864,
-   "source": "aiwi_v11_closed/v12/bounds_gemini-31-flash-lite.json",
    "passes_r2_filter": true
   },
   {
@@ -237,8 +233,6 @@
    "upper": 67.6,
    "coverage": 1.0,
    "r2": 0.657342863404437,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-30b-a3b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -250,7 +244,6 @@
    "coverage": 0.99,
    "r2": 0.7658049924896226,
    "refusal_rate": 0.01813512654876628,
-   "source": "aiwi_v11_closed/v12/bounds_grok-43.json",
    "passes_r2_filter": true
   },
   {
@@ -261,8 +254,6 @@
    "upper": 64.2,
    "coverage": 1.0,
    "r2": 0.7639155422178979,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-235b-a22b-instruct.json",
    "passes_r2_filter": true
   },
   {
@@ -274,7 +265,6 @@
    "coverage": 0.982,
    "r2": 0.6413907857323295,
    "refusal_rate": 0.003973931012557622,
-   "source": "aiwi_v11_closed/v12/bounds_claude-opus-46.json",
    "passes_r2_filter": true
   },
   {
@@ -286,7 +276,6 @@
    "coverage": 0.924,
    "r2": 0.7582390220295313,
    "refusal_rate": 0.12491614758025875,
-   "source": "aiwi_v11_closed/v12/bounds_gpt-5-mini.json",
    "passes_r2_filter": true
   },
   {
@@ -298,7 +287,6 @@
    "coverage": 0.986,
    "r2": 0.7825664616586423,
    "refusal_rate": 0.20036022673094242,
-   "source": "aiwi_v11_closed/v12/bounds_gemini-3-flash.json",
    "passes_r2_filter": true
   },
   {
@@ -310,7 +298,16 @@
    "coverage": 0.902,
    "r2": 0.4750464825974986,
    "refusal_rate": 0.00034668515654168224,
-   "source": "aiwi_v11_closed/v12/bounds_gpt-5-nano.json",
+   "passes_r2_filter": true
+  },
+  {
+   "model": "claude-opus-55",
+   "type": "closed",
+   "aiwi": 60.91703056768558,
+   "lower": 55.800000000000004,
+   "upper": 64.2,
+   "coverage": 0.916,
+   "r2": 0.8560817638570618,
    "passes_r2_filter": true
   },
   {
@@ -322,7 +319,6 @@
    "coverage": 1.0,
    "r2": 0.7539713556237725,
    "refusal_rate": 0.0401058201058201,
-   "source": "aiwi_v11_closed/v12/bounds_kimi-k25.json",
    "passes_r2_filter": true
   },
   {
@@ -334,7 +330,6 @@
    "coverage": 0.978,
    "r2": 0.5788296673008004,
    "refusal_rate": 0.055795833995865796,
-   "source": "aiwi_v11_closed/v12/bounds_claude-sonnet-46.json",
    "passes_r2_filter": true
   }
  ],
@@ -347,8 +342,6 @@
    "upper": 89.4,
    "coverage": 1.0,
    "r2": 0.049367561667243876,
-   "refusal_rate": null,
-   "source": "aiwi_v11/mistral-7b-instruct-v02.json",
    "passes_r2_filter": false
   },
   {
@@ -359,8 +352,6 @@
    "upper": 31.399999999999995,
    "coverage": 1.0,
    "r2": 0.05709788573656793,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-7b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -371,8 +362,6 @@
    "upper": 85.2,
    "coverage": 1.0,
    "r2": 0.06670514277056261,
-   "refusal_rate": null,
-   "source": "aiwi_v11/llama-32-3b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -383,8 +372,6 @@
    "upper": 77.60000000000001,
    "coverage": 1.0,
    "r2": 0.1278003066391875,
-   "refusal_rate": null,
-   "source": "aiwi_v11/gemma-3-4b-it.json",
    "passes_r2_filter": false
   },
   {
@@ -395,8 +382,6 @@
    "upper": 75.4,
    "coverage": 1.0,
    "r2": 0.15278899024125303,
-   "refusal_rate": null,
-   "source": "aiwi_v11/gemma-3-27b-it.json",
    "passes_r2_filter": false
   },
   {
@@ -407,8 +392,6 @@
    "upper": 95.19999999999999,
    "coverage": 1.0,
    "r2": 0.15541149847243485,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-3b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -419,8 +402,6 @@
    "upper": 98.2,
    "coverage": 1.0,
    "r2": 0.17423752508799206,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen15-7b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -431,8 +412,6 @@
    "upper": 53.800000000000004,
    "coverage": 1.0,
    "r2": 0.1840470962009284,
-   "refusal_rate": null,
-   "source": "aiwi_v11/gemma-3-12b-it.json",
    "passes_r2_filter": false
   },
   {
@@ -443,8 +422,6 @@
    "upper": 99.8,
    "coverage": 1.0,
    "r2": 0.2126942689090996,
-   "refusal_rate": null,
-   "source": "aiwi_v11/llama-32-1b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -455,8 +432,6 @@
    "upper": 83.39999999999999,
    "coverage": 1.0,
    "r2": 0.24296040324683255,
-   "refusal_rate": null,
-   "source": "aiwi_v11/phi-3-mini-128k.json",
    "passes_r2_filter": false
   },
   {
@@ -467,8 +442,6 @@
    "upper": 98.4,
    "coverage": 1.0,
    "r2": 0.24401981526935013,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-15b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -479,8 +452,6 @@
    "upper": 92.80000000000001,
    "coverage": 1.0,
    "r2": 0.25336024487411246,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-8b.json",
    "passes_r2_filter": false
   },
   {
@@ -491,8 +462,6 @@
    "upper": 99.6,
    "coverage": 1.0,
    "r2": 0.25836988749580003,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen15-4b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -504,7 +473,6 @@
    "coverage": 1.0,
    "r2": 0.26134986928494763,
    "refusal_rate": 0.564042328042328,
-   "source": "aiwi_v11_closed/v12/bounds_claude-haiku-45.json",
    "passes_r2_filter": false
   },
   {
@@ -515,8 +483,6 @@
    "upper": 100.0,
    "coverage": 1.0,
    "r2": 0.27829208303746045,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-05b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -527,8 +493,6 @@
    "upper": 78.60000000000001,
    "coverage": 1.0,
    "r2": 0.29091531894041356,
-   "refusal_rate": null,
-   "source": "aiwi_v11/llama-31-8b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -539,8 +503,6 @@
    "upper": 100.0,
    "coverage": 1.0,
    "r2": 0.29247162886849676,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen2-15b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -551,8 +513,6 @@
    "upper": 26.8,
    "coverage": 1.0,
    "r2": 0.3006740369820319,
-   "refusal_rate": null,
-   "source": "aiwi_v11/gemma-2-9b-it.json",
    "passes_r2_filter": false
   },
   {
@@ -563,8 +523,6 @@
    "upper": 98.0,
    "coverage": 1.0,
    "r2": 0.32123213867940525,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen15-18b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -575,8 +533,6 @@
    "upper": 72.2,
    "coverage": 1.0,
    "r2": 0.35258347229169684,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen3-4b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -587,8 +543,6 @@
    "upper": 87.6,
    "coverage": 1.0,
    "r2": 0.37832687373966345,
-   "refusal_rate": null,
-   "source": "aiwi_v11/qwen25-14b-instruct.json",
    "passes_r2_filter": false
   },
   {
@@ -600,7 +554,6 @@
    "coverage": 1.0,
    "r2": 0.38758875355881883,
    "refusal_rate": 0.005507936507936508,
-   "source": "aiwi_v11_closed/v12/bounds_gpt-54-nano.json",
    "passes_r2_filter": false
   }
  ]

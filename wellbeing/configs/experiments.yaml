@@ -460,19 +460,6 @@ compute_responses_d2_cap2048_vis:
     api_concurrency: 64
     responses_dir: ../../../datasets/experiences/d2_negative_500_cap2048/responses
 
-compute_responses_d2_cap2048_vis_t07:
-  script_path: wellbeing_evaluations/generate_responses/run.py
-  description: "As compute_responses_d2_cap2048_vis, at the v1.1 default temperature 0.7, for models that accept a temperature (muse-spark-13)"
-  arguments:
-    model_key: "<model_key>"
-    dataset: d2_negative_500
-    mode: single_turn
-    max_tokens: 2048
-    visible_token_cap: 2048
-    temperature: 0.7
-    api_concurrency: 64
-    responses_dir: ../../../datasets/experiences/d2_negative_500_cap2048/responses
-
 compute_experienced_utility_d2_cap2048_k1em4:
   script_path: wellbeing_evaluations/compute_experienced_utility/run.py
   description: "EU on D2 cap2048 for reasoning-always-on API models (K=1 per order, edge_multiplier 4, skip, no logprobs)"

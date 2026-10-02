@@ -985,21 +985,3 @@ gpt-61-sol:
   max_tokens: 4000
   generation_max_tokens: 12000
   concurrency_limit: 400
-
-muse-spark-13:
-  # Served via OpenRouter's public OpenAI-compatible API (key: api_keys/api_key_openrouter.txt).
-  # NOTE: the 2048 visible-token cap for this model is counted with tiktoken o200k_base
-  # (the openai_direct tokenizer), NOT Muse's own tokenizer, so "2048 tokens" is approximate.
-  model_name: "meta/muse-spark-1.3"
-  model_type: openai_direct       # direct OpenAI-compatible path (o200k visible cap, refusal handling)
-  api_base_url: "https://openrouter.ai/api/v1"
-  api_key_env: "OPENROUTER_API_KEY"
-  api_key_file: "api_key_openrouter.txt"
-  gpu_count: 0
-  use_batch_api: false
-  timeout: 600
-  max_tokens: 512
-  generation_max_tokens: 8000
-  concurrency_limit: 150
-  extra_body:
-    reasoning: {effort: minimal}  # reasoning mandatory (disabled/none -> 400)
