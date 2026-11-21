@@ -12,7 +12,6 @@ import asyncio
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
 from torch.nn.attention import SDPBackend, sdpa_kernel
-import imghdr
 import openai
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -176,6 +175,35 @@ def _encode_image(image_path: str) -> str:
     with open(image_path, 'rb') as image_file:
         return b64encode(image_file.read()).decode('utf-8')
 
+# Same header checks, in the same order, as imghdr.what(), which was removed
+# in Python 3.13 (PEP 594).
+def _is_pnm(h: bytes, kinds: bytes) -> bool:
+    return len(h) >= 3 and h[0] == ord(b'P') and h[1] in kinds and h[2] in b' \t\n\r'
+
+_IMAGE_TESTS = (
+    ('jpeg', lambda h: h[6:10] in (b'JFIF', b'Exif') or h[:4] == b'\xff\xd8\xff\xdb'),
+    ('png', lambda h: h.startswith(b'\211PNG\r\n\032\n')),
+    ('gif', lambda h: h[:6] in (b'GIF87a', b'GIF89a')),
+    ('tiff', lambda h: h[:2] in (b'MM', b'II')),
+    ('rgb', lambda h: h.startswith(b'\001\332')),
+    ('pbm', lambda h: _is_pnm(h, b'14')),
+    ('pgm', lambda h: _is_pnm(h, b'25')),
+    ('ppm', lambda h: _is_pnm(h, b'36')),
+    ('rast', lambda h: h.startswith(b'\x59\xA6\x6A\x95')),
+    ('xbm', lambda h: h.startswith(b'#define ')),
+    ('bmp', lambda h: h.startswith(b'BM')),
+    ('webp', lambda h: h.startswith(b'RIFF') and h[8:12] == b'WEBP'),
+    ('exr', lambda h: h.startswith(b'\x76\x2f\x31\x01')),
+)
+
+def _image_type(image_path: str) -> Optional[str]:
+    with open(image_path, 'rb') as image_file:
+        h = image_file.read(32)
+    for name, test in _IMAGE_TESTS:
+        if test(h):
+            return name
+    return None
+
 def retry(times=3, exceptions=(Exception,)):
     def decorator(func):
         @wraps(func)
@@ -265,7 +293,7 @@ class OpenAIAgent(LLMAgent):
         for message in messages:
             if (image_path := message.get('image_path')):
                 image_data = _encode_image(image_path)
-                image_type = imghdr.what(image_path) or 'jpeg'  # Default to 'jpeg' if type can't be determined
+                image_type = _image_type(image_path) or 'jpeg'  # Default to 'jpeg' if type can't be determined
                 message['content'] = [
                     {"type": "text", "text": message['content']},
                     {"type": "image_url", "image_url": {"url": f"data:image/{image_type};base64,{image_data}"}}
@@ -535,7 +563,7 @@ class AnthropicAgent(LLMAgent):
         for message in messages:
             if (image_path := message.get('image_path')):
                 image_data = _encode_image(image_path)
-                image_type = imghdr.what(image_path) or 'jpeg'
+                image_type = _image_type(image_path) or 'jpeg'
                 message['content'] = [
                     {
                         "type": "image",
